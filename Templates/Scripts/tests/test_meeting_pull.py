@@ -73,6 +73,21 @@ class TestTheSessionHoldsOnlyCalendarTools:
                 build({**CONFIG, key: value})
             assert f"ERROR: config {key!r} must be a single tool-name part" in capsys.readouterr().out
 
+    @pytest.mark.parametrize("prefix", ["mcp_claude_ai_Microsoft_365",
+                                        "claude_ai_Microsoft_365", "mcp__", "mcp__x_"])
+    def test_a_prefix_the_cli_would_never_expose_is_refused(
+            self, prefix: str, capsys: pytest.CaptureFixture) -> None:
+        """A Windows install, 2026-10-09: 'mcp_claude_ai_Microsoft_365' (one
+        underscore short) allowlisted two tools that do not exist, and the run
+        read like a permissions failure. --dry-run now catches it."""
+        with pytest.raises(SystemExit):
+            mp.allowed_tools({**CONFIG, "mcp_prefix": prefix})
+        assert "ERROR: config 'mcp_prefix' must look like mcp__<server>" in capsys.readouterr().out
+
+    def test_the_default_prefix_and_another_server_are_accepted(self) -> None:
+        assert mp.allowed_tools({**CONFIG, "mcp_prefix": "mcp__other-server_2"}).startswith(
+            "mcp__other-server_2__")
+
     def test_a_denied_connector_tool_cannot_be_named_in_config(
             self, capsys: pytest.CaptureFixture) -> None:
         denied = sorted(mp.OTHER_M365_TOOLS)[0]
@@ -468,6 +483,18 @@ class TestASessionWithoutTheCalendar:
         with pytest.raises(mp.ProducerOutputError,
                            match=r"connector was not loaded into the session \(MCP servers: none\)"):
             mp.extract_events(_stream([], tools=(), calls=()), SEARCH)
+
+    def test_a_connected_server_with_misnamed_tools_names_what_it_loaded(self) -> None:
+        """2026-10-09: the server was connected but the allowlist named tools
+        under a wrong prefix, and the message said the connector 'was not
+        loaded' while listing it as connected."""
+        with pytest.raises(mp.ProducerOutputError) as e:
+            mp.extract_events(_stream([], tools=(SEARCH, READ), calls=()),
+                              "mcp_claude_ai_Microsoft_365__outlook_calendar_search")
+        msg = str(e.value)
+        assert "has no tool named mcp_claude_ai_Microsoft_365__outlook_calendar_search" in msg
+        assert "the MCP tools it loaded: " + SEARCH + ", " + READ + "." in msg
+        assert "not loaded into the session" not in msg
 
     def test_a_session_that_never_searched_is_an_error(self) -> None:
         with pytest.raises(mp.ProducerOutputError, match="never completed a call to " + SEARCH):

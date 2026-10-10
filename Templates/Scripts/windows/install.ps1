@@ -483,6 +483,18 @@ if ($prof) {
             # failure.
             $mpPrefix = Read-Answer -Question '  MCP tool-name prefix' `
                                     -Default (Get-ProfileValue $prof 'MCP_PREFIX' 'mcp__claude_ai_Microsoft_365') -NoPrompt:$NonInteractive
+            # One underscore short (mcp_claude...) and every allowlisted tool
+            # name is wrong (a Windows install, 2026-10-09). Ask again;
+            # unattended, fall back to the Microsoft 365 default, loudly.
+            while ($mpPrefix -cnotmatch '^mcp__[A-Za-z0-9_-]*[A-Za-z0-9-]$') {
+                Write-Warning "  '$mpPrefix' is not a tool-name prefix: it must start with mcp__ (two underscores)."
+                if ($NonInteractive -or [Console]::IsInputRedirected) {
+                    $mpPrefix = 'mcp__claude_ai_Microsoft_365'
+                    Write-Warning "  Using $mpPrefix. Fix MCP_PREFIX in the profile if that is wrong."
+                    break
+                }
+                $mpPrefix = Read-Answer -Question '  MCP tool-name prefix' -Default 'mcp__claude_ai_Microsoft_365'
+            }
             $mpSearch = Read-Answer -Question '  Calendar-search tool name' `
                                     -Default (Get-ProfileValue $prof 'SEARCH_TOOL' 'outlook_calendar_search') -NoPrompt:$NonInteractive
             $mpRead   = Read-Answer -Question '  Resource-read tool name' `

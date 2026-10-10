@@ -84,6 +84,18 @@ tenant_domains="$(prompt "  Internal domain(s), comma-separated" "$(pdefault TEN
 # Only worth changing for a non-Microsoft connector; the tool names must match
 # what `claude mcp list` exposes, NOT what a desktop client shows.
 mcp_prefix="$(prompt "  MCP tool-name prefix" "$(pdefault MCP_PREFIX "mcp__claude_ai_Microsoft_365")")"
+# The CLI names tools mcp__<server>__<tool>: one underscore short and the
+# first run reads like a permissions failure. Ask again; unattended, a bad
+# profile value falls back to the Microsoft 365 default, loudly.
+while [[ ! "$mcp_prefix" =~ ^mcp__[A-Za-z0-9_-]*[A-Za-z0-9-]$ ]]; do
+    warn "  '$mcp_prefix' is not a tool-name prefix: it must start with mcp__ (two underscores)."
+    if [[ "${INTERACTIVE:-1}" -eq 0 ]]; then
+        mcp_prefix="mcp__claude_ai_Microsoft_365"
+        warn "  Using $mcp_prefix. Fix MCP_PREFIX in the profile if that is wrong."
+        break
+    fi
+    mcp_prefix="$(prompt "  MCP tool-name prefix" "mcp__claude_ai_Microsoft_365")"
+done
 search_tool="$(prompt "  Calendar-search tool name" "$(pdefault SEARCH_TOOL "outlook_calendar_search")")"
 read_tool="$(prompt "  Resource-read tool name" "$(pdefault READ_TOOL "read_resource")")"
 out_dir="$(prompt "  Drop folder the consumer watches" "$(pdefault OUT_DIR "$HANDOFF")")"

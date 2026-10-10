@@ -407,6 +407,14 @@ def tool_name(config, key, default):
             % (key, value))
     if key != "mcp_prefix" and value in OTHER_M365_TOOLS:
         die("config %r names %r, a connector tool this session is denied" % (key, value))
+    # The CLI names MCP tools mcp__<server>__<tool>. One underscore short and
+    # every allowlisted name is a tool that does not exist: the connector
+    # still shows as connected and the run reads like a permissions failure
+    # (a Windows install, 2026-10-09).
+    if key == "mcp_prefix" and not (value.startswith("mcp__") and len(value) > 5
+                                    and not value.endswith("_")):
+        die("config 'mcp_prefix' must look like mcp__<server> (two underscores "
+            "after mcp, as `claude mcp list` names tools), not %r" % value)
     return value
 
 
@@ -672,6 +680,12 @@ def _servers(init):
                      for s in servers if isinstance(s, dict))
 
 
+def _connected(init):
+    servers = init.get("mcp_servers")
+    return isinstance(servers, list) and any(
+        isinstance(s, dict) and s.get("status") == "connected" for s in servers)
+
+
 def extract_events(stdout, search_tool=None):
     """Return the events list from `claude -p --output-format stream-json`
     stdout (a single `json` envelope is accepted too).
@@ -703,6 +717,18 @@ def extract_events(stdout, search_tool=None):
         # No tools list at all is left to the call check below, rather than
         # read as "not loaded" on a CLI that stops printing one.
         if isinstance(tools, list) and search_tool not in tools:
+            mcp_tools = sorted(t for t in tools if isinstance(t, str) and t.startswith("mcp__"))
+            if _connected(init):
+                # The server is up, so the name is wrong, not the connector:
+                # say what the session did have (Windows install, 2026-10-09).
+                raise ProducerOutputError(
+                    "the session has no tool named %s although its MCP servers "
+                    "are connected (%s); the MCP tools it loaded: %s. No calendar "
+                    "was read - not an empty calendar. Check mcp_prefix and "
+                    "search_tool against `claude mcp list`"
+                    % (search_tool, _servers(init),
+                       ", ".join(mcp_tools[:12]) + (" ..." if len(mcp_tools) > 12 else "")
+                       if mcp_tools else "none"))
             raise ProducerOutputError(
                 "the calendar connector was not loaded into the session (MCP "
                 "servers: %s), so no calendar was read - not an empty calendar"
