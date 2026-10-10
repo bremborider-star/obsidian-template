@@ -217,14 +217,22 @@ permission prompt, so anything permission-shaped fails quietly.
    this is a server-side policy. It needs an admin change on the tenant side,
    after which you sign out and back in to pick it up. Until then, run the
    producer interactively, where you can answer the prompt.
-2. **The tool names in the allowlist don't match what the CLI exposes.** The
-   error is different and easy to misread as the same problem:
-   `Claude requested permissions to use ... but you haven't granted it yet`.
+2. **The tool names in the allowlist don't match what the CLI exposes.**
    The CLI and desktop clients can name the same connector differently — the
    CLI uses a stable prefix like `mcp__claude_ai_Microsoft_365__*`, while a
    desktop client may show an installation-specific id. `--allowedTools`
-   matches literally, so a mismatched name is never granted. Check the real
-   names with `claude mcp list` and put the prefix in `meeting_pull.json`.
+   matches literally, so a mismatched name is never granted. Two checks catch
+   this before it reads like a permissions problem:
+   - A malformed prefix, such as one underscore short
+     (`mcp_claude_ai_Microsoft_365`), is refused by the installers and by
+     `meeting_pull.py --dry-run`: `config 'mcp_prefix' must look like
+     mcp__<server>`.
+   - A well-formed but wrong prefix or tool name fails the run with `the
+     session has no tool named ... although its MCP servers are connected`,
+     followed by the MCP tools the session actually loaded.
+
+   Check the real names with `claude mcp list` and put the prefix in
+   `meeting_pull.json`.
 
 A useful property of the split design is worth stating plainly, because it
 inverts the usual debugging instinct: **a dead producer looks like a healthy
