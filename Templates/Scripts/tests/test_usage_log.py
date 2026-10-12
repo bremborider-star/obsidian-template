@@ -104,9 +104,16 @@ def test_estimate_pins_absolute_list_prices() -> None:
     passed while Opus sat at a stale $15/$75 — three times its real rate.
     Pin the actual per-MTok numbers so a price change has to be deliberate."""
     for model, dollars_per_mtok_in in (("claude-opus-5", 5.00),
+                                       ("claude-opus-5-5", 4.00),
+                                       ("claude-opus-5.5", 4.00),     # gateway alias
                                        ("claude-fable-5", 10.00),
-                                       ("claude-sonnet-5", 3.00),
+                                       ("claude-sonnet-5", 2.00),
+                                       ("claude-sonnet-5-5", 2.00),
+                                       ("claude-sonnet-5.5", 2.00),   # gateway alias
+                                       ("claude-sonnet-4-6", 3.00),
+                                       ("claude-haiku-5-5", 0.10),
                                        ("claude-haiku-4-5", 1.00),
+                                       ("claude-haiku-4.5", 1.00),    # gateway alias
                                        ("claude-3-opus-20240229", 15.00)):
         usd = usage_log.estimate_usd({
             "model": model, "input_tokens": 1_000_000, "output_tokens": 0,

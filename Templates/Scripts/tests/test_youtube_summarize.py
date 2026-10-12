@@ -1098,3 +1098,41 @@ class TestStatic:
         assert "Obsidian" in str(ys.DEFAULT_OUT), (
             f"DEFAULT_OUT {ys.DEFAULT_OUT} does not appear to be in the vault")
         assert "YouTube" in str(ys.DEFAULT_OUT)
+
+
+class TestSonnet55Call:
+    """2026-10-12: the default moved to Sonnet 5.5, which thinks by default
+    and spends ~40% more output on the same transcript. A reply cut at the
+    output limit, or declined, must fail loudly, not become a note."""
+
+    def _summarize_with(self, monkeypatch, msg):
+        import llm_endpoint
+        seen = {}
+
+        class _Client:
+            class messages:
+                @staticmethod
+                def create(**kw):
+                    seen.update(kw)
+                    return msg
+        monkeypatch.setattr(llm_endpoint, "client", lambda **kw: _Client())
+        out = ys.summarize("transcript", model=ys.DEFAULT_MODEL, verbose=False)
+        return out, seen
+
+    def test_the_default_is_sonnet_5_5_with_room_for_thinking(self, monkeypatch) -> None:
+        msg = _FakeMessage(_FakeBlock("thinking"), _FakeBlock("text", "summary"))
+        msg.stop_reason = "end_turn"
+        out, seen = self._summarize_with(monkeypatch, msg)
+        assert out == "summary"
+        assert seen["model"] == "claude-sonnet-5-5"
+        assert seen["max_tokens"] == ys.MAX_TOKENS >= 16000
+
+    @pytest.mark.parametrize("stop,marker", [
+        ("max_tokens", "output limit; the summary would be truncated"),
+        ("refusal", "declined to summarize this transcript"),
+    ])
+    def test_a_cut_off_or_declined_reply_is_an_error(self, monkeypatch, stop, marker) -> None:
+        msg = _FakeMessage(_FakeBlock("text", "half a summ"))
+        msg.stop_reason = stop
+        with pytest.raises(RuntimeError, match=marker):
+            self._summarize_with(monkeypatch, msg)

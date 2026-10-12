@@ -110,7 +110,7 @@ def record(pipeline: str, model: str, usage: object) -> None:
         pass
 
 
-# List prices per million tokens (USD), current as of 2026-08-25. Estimates
+# List prices per million tokens (USD), from claude.com/pricing on 2026-10-12. Estimates
 # only — see module docstring. Keyed on substrings so dated model ids and
 # gateway aliases still match. ORDER MATTERS: first match wins, so specific
 # entries sit above the family ones (claude-3-opus before opus).
@@ -119,12 +119,19 @@ PRICES_PER_MTOK = [
     ("claude-3-opus", 15.00, 75.00),  # legacy Opus 3 — must precede "opus"
     ("mythos", 10.00, 50.00),
     ("fable", 10.00, 50.00),
+    # Both spellings: Anthropic's own id (claude-opus-5-5) and a LiteLLM
+    # gateway's alias (claude-opus-5.5).
+    ("opus-5-5", 4.00, 20.00),
+    ("opus-5.5", 4.00, 20.00),
     ("opus", 5.00, 25.00),            # Opus 5 / 4.8 / 4.7 / 4.6
-    ("sonnet", 3.00, 15.00),          # Sonnet 5 ran a $2/$10 introductory
-                                      # rate through 2026-08-31; the standing
-                                      # rate is used here, so estimates over
-                                      # that window run slightly high
-    ("haiku", 1.00, 5.00),
+    # Sonnet 5 and 5.5 are both $2/$10 standing (the 2026-08-25 note that
+    # $2/$10 was an introductory rate was wrong; it is the list price).
+    ("sonnet-5", 2.00, 10.00),        # matches -5, -5-5 and -5.5
+    ("sonnet", 3.00, 15.00),          # Sonnet 4.6 and older
+    # Haiku 5.5 is tiered: $0.10/$0.50 up to 100K input tokens, $0.50/$2.50
+    # beyond. The lower tier is used; a run over 100K reads low.
+    ("haiku-5", 0.10, 0.50),
+    ("haiku", 1.00, 5.00),            # Haiku 4.5
 ]
 _DEFAULT_PRICE = (3.00, 15.00)  # price unknown: assume sonnet-class
 

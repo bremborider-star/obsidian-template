@@ -28,7 +28,7 @@ Naming the venv interpreter explicitly, as above, is still the clearest way to i
 
 1. Fetches the video's metadata and caption tracks via `yt-dlp` (no video/audio download — captions only). Only YouTube URLs are accepted (`youtube.com`, `www.`/`m.`/`music.youtube.com`, `youtu.be`), and `yt-dlp` runs with its YouTube extractors alone: its generic extractor fetches whatever a pasted page names, loopback and LAN addresses included, outside any check of ours. Each `yt-dlp` run is limited to 10 minutes and ignores `yt-dlp` config files and plugins (`--ignore-config`, `--no-plugin-dirs`, Python's isolated mode), so a `yt-dlp.conf` or `yt_dlp_plugins/` in the directory you run it from cannot change what it fetches. A video link shared from inside a playlist (`watch?v=…&list=…`, `youtu.be/…?list=…`) is summarized as that one video unless you pass `--playlist`.
 2. Picks the best available English track: manual captions first, then auto-generated, preferring plain `en` over `en-*` variants. The track is fetched through `url_safety.safe_fetch`, like every other untrusted URL in the vault: each redirect hop is re-checked against loopback/private/link-local addresses, the connection goes to the address that was checked, the body is capped at 5 MB, and the whole fetch has a 60-second deadline. Environment proxy settings are not used for this fetch (a proxy would resolve the name itself, undoing the check), so on a network that only allows egress through a proxy it fails rather than going around the check.
-3. Sends the transcript through [`llm_endpoint.py`](../Templates/Scripts/llm_endpoint.py) (`claude-sonnet-5` by default) with a fixed prompt asking for a short overview, a "Key takeaways" bullet list, a "Notable points" section, and 3–7 suggested topic tags. The call is metered in `usage_log`, so it shows up in the morning dashboard's cost view alongside the tagger and classifier.
+3. Sends the transcript through [`llm_endpoint.py`](../Templates/Scripts/llm_endpoint.py) (`claude-sonnet-5-5` by default; behind a gateway that names it differently, set `YOUTUBE_MODEL`, for example `claude-sonnet-5.5`) with a fixed prompt asking for a short overview, a "Key takeaways" bullet list, a "Notable points" section, and 3–7 suggested topic tags. The call is metered in `usage_log`, so it shows up in the morning dashboard's cost view alongside the tagger and classifier.
 4. Writes a markdown note with frontmatter (`title`, `source`, `author`, `published`, `duration`, `description`, `classification: internal-use-only`, `tags`) into `Clippings/YouTube/`. The `tags` list always includes `youtube` plus whatever the model suggested.
 5. Skips videos that already have a note in the output directory — safe to re-run over a list without duplicating work.
 
@@ -46,7 +46,7 @@ Playlist entries come from remote playlist metadata, so each must be a YouTube U
 | Flag | Purpose |
 |---|---|
 | `--playlist` | treat the URL as a playlist and process every video in it |
-| `--model NAME` | model to use (default `claude-sonnet-5`; or set `YOUTUBE_MODEL`) |
+| `--model NAME` | model to use (default `claude-sonnet-5-5`; or set `YOUTUBE_MODEL`) |
 | `--out DIR` | output directory (default `~/Obsidian/Clippings/YouTube`) |
 | `--max N` | cap a playlist run at N videos (default: no cap) |
 | `--dry-run` | fetch the transcript but skip the model call and the file write — useful for checking a video has usable captions before spending an API call |

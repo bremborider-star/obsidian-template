@@ -32,7 +32,7 @@ extractor would otherwise fetch whatever a pasted page or feed names --
 including loopback and LAN addresses -- with no SSRF guard of ours in the way.
 
 Flags:
-    --model NAME      model id (default: claude-sonnet-5; env: YOUTUBE_MODEL)
+    --model NAME      model id (default: claude-sonnet-5-5; env: YOUTUBE_MODEL)
     --out DIR         Output directory (default: ~/Obsidian/Clippings/YouTube)
     --max N           Cap playlist runs at N videos (default: no cap)
     --dry-run         Fetch transcript but skip the API call and write
@@ -109,7 +109,14 @@ load_dotenv(Path.home() / "dev" / "secrets" / ".env")
 # Haiku-class task the way tagging is, so this is a Sonnet default rather than
 # the tagger's model. YOUTUBE_MODEL overrides it (and reaches the scheduled
 # path, because 20-secrets persists it to .env); --model overrides that.
-DEFAULT_MODEL = "claude-sonnet-5"
+# This is Anthropic's own id. A gateway may name the same model differently
+# (a LiteLLM gateway serves it as "claude-sonnet-5.5"): set YOUTUBE_MODEL to
+# the gateway's name there. Sonnet 5 used the same id on both, 5.5 does not.
+DEFAULT_MODEL = "claude-sonnet-5-5"
+# Output ceiling. Sonnet 5.5 thinks by default and its thinking counts toward
+# max_tokens; on a 12k-token transcript it spent ~40% more output than
+# Sonnet 5, and a long video's summary already ran to ~1,700 tokens there.
+MAX_TOKENS = 16000
 
 
 def resolve_model(cli_model: str | None = None) -> str:
@@ -453,7 +460,7 @@ def summarize(transcript: str, *, model: str, verbose: bool) -> str:
     log(f"calling {model} via {llm_endpoint.describe()}...", verbose=verbose)
     resp = client.messages.create(
         model=model,
-        max_tokens=4096,
+        max_tokens=MAX_TOKENS,
         messages=[{"role": "user",
                    "content": SUMMARY_PROMPT.format(transcript=transcript)}],
     )
@@ -464,6 +471,13 @@ def summarize(transcript: str, *, model: str, verbose: bool) -> str:
         # Metering is observability, never a reason to lose a finished summary.
         pass
 
+    # A cut-off or declined reply must not be written as a finished summary.
+    stop = getattr(resp, "stop_reason", None)
+    if stop == "max_tokens":
+        raise RuntimeError(f"{model} hit the {MAX_TOKENS}-token output limit; "
+                           "the summary would be truncated")
+    if stop == "refusal":
+        raise RuntimeError(f"{model} declined to summarize this transcript")
     text = _text_blocks(resp)
     if not text:
         raise RuntimeError(f"{model} returned no text blocks")
