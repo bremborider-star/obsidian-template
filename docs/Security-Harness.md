@@ -419,7 +419,8 @@ controls among them (`integrity_monitor.py`, `plugin_integrity_check.py`,
 security scenarios (DNS rebinding, redirect-to-private-IP, allowlist tamper
 detection, HMAC forgery resistance). Fully mocked — safe to run repeatedly on a live Mac;
 see `Templates/Scripts/tests/README.md`. Run it with
-`Templates/Scripts/tests/run_tests.sh`.
+`Templates/Scripts/tests/run_tests.sh`, which runs it in a separate test venv
+built only from the hash-checked `requirements-dev.lock`.
 
 ## Uninstall
 

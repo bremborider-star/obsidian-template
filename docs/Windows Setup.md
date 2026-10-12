@@ -626,17 +626,24 @@ x64 box that can offload to a discrete GPU.
 
   Fixes for every remaining failure landed 2026-08-25 after that measurement,
   so the figure above is again **due a re-measurement**. It is the last result
-  actually observed, not a projection. `pytest`
-  and `pytest-cov` are deliberately not in `requirements.txt`, so install
-  them first, then run from the repo root:
+  actually observed, not a projection. The test tools are not in
+  `requirements.lock` and must not go into the jobs' `.venv`: they have their
+  own lock, `requirements-dev.lock`, installed hash-checked into a separate
+  test venv. Build it once, then run from the repo root:
 
   ```powershell
-  .\Templates\Scripts\.venv\Scripts\python.exe -m pip install pytest pytest-cov
-  .\Templates\Scripts\.venv\Scripts\python.exe -m pytest Templates\Scripts\tests
+  py -3.13 -m venv Templates\Scripts\.venv-test
+  .\Templates\Scripts\.venv-test\Scripts\python.exe -m pip install --disable-pip-version-check --require-hashes --no-deps --only-binary :all: -r Templates\Scripts\requirements-dev.lock
+  .\Templates\Scripts\.venv-test\Scripts\python.exe -m pytest Templates\Scripts\tests
   ```
 
-  `run_tests.sh` is macOS-only (`pip3 install --break-system-packages`); the
-  invocation above is the Windows equivalent, and needs no `PYTHONPATH` —
+  A `.venv` that got `pytest` from the instructions here before 2026-10-12
+  carries packages no lock names (`update.ps1` lists them as "installed but not
+  in requirements.lock"); delete `.venv` and re-run `install.ps1` to get one
+  that is exactly the lock.
+
+  `run_tests.sh` is the macOS runner (it builds the same `.venv-test` from the
+  same lock); the invocation above is the Windows equivalent, and needs no `PYTHONPATH` —
   `conftest.py` resolves `Templates/Scripts/` onto `sys.path` itself. Add
   `-rs` to print the skip reasons. The five skips are platform-conditional,
   not disabled tests: four macOS-only branches (the Keychain trust-anchor

@@ -36,7 +36,8 @@ def _shipped_text_files():
     for root in (REPO / "installers", REPO / "Templates" / "Scripts"):
         for p in root.rglob("*"):
             if p.is_file() and p.suffix in (".sh", ".ps1", ".psm1", ".py") \
-                    and "tests" not in p.parts and ".venv" not in p.parts:
+                    and "tests" not in p.parts \
+                    and not any(part.startswith(".venv") for part in p.parts):
                 yield p
 
 

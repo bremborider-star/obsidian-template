@@ -96,7 +96,9 @@ touching it. Full detail in [`docs/Demo-Content.md`](docs/Demo-Content.md).
   required by the RAG sync); `requirements.lock` is what installs — every
   package at a locked release with its SHA256, written by
   `installers/lib/lock_requirements.py` (needs `uv`); `requirements-dropper.*`
-  is the same pair for the Markitdown Dropper venv. Edit the `.txt`, re-lock,
+  is the same pair for the Markitdown Dropper venv, `requirements-dev.*` for
+  the test suite's own venv (`.venv-test`, built by `tests/run_tests.sh`;
+  test tools never go into `.venv`). Edit the `.txt`, re-lock,
   commit both; never hand-edit a lock, never `pip install` outside one (a test
   in `test_requirements_lock.py` scans every installer and script for that).
   `mlx-whisper` is Apple-Silicon-only and is guarded out elsewhere. Floors the
