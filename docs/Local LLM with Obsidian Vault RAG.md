@@ -162,7 +162,7 @@ The script keeps state at `~/.local/share/obsidian-rag-sync/state.json` — a ma
 
 ### Excluded directories
 
-The sync skips `.obsidian/`, `.trash/`, `Templates/`, `Excalidraw/`, and `Z_attachments/`. `Z_archive/` is **not** excluded — archived content is still indexed and findable by RAG queries.
+The sync skips `Templates/`, `Excalidraw/`, `VoiceInbox/`, `Z_attachments/` and every dot-folder (`.obsidian/`, `.trash/`, `.pytest_cache/`, ...) wherever they sit. At the vault root only, it also skips the template's own files — `docs/`, `installers/`, `CLAUDE.md`, `ONBOARDING.md`, `README.md` and `LICENSE*` — because the template repo is the vault and would otherwise index its own documentation; a `docs/` folder or `README.md` of yours further down (say `Knowledge/docs/`) is indexed as usual. Template files indexed by an earlier version are removed from the collection on the next sync, as deletions. `Z_archive/` is **not** excluded — archived content is still indexed and findable by RAG queries. The rules are `EXCLUDE_DIRS`, `EXCLUDE_ROOT_DIRS` and `EXCLUDE_ROOT_FILES` in `obsidian-rag-sync.py`.
 
 ### Thin-content filtering
 

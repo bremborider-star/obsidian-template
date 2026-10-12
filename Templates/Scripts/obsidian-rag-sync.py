@@ -168,6 +168,32 @@ EXCLUDE_DIRS = {
 # they don't self-index back into the knowledge collection on subsequent runs.
 EXCLUDE_FILENAME_PREFIXES = ("RAG-Sync-",)
 
+# The template's own files, excluded at the vault ROOT only. The repo IS the
+# vault, so a clone carries the template's documentation and installer next to
+# the user's notes; indexing them put ~25 template docs into the knowledge
+# collection. Root-only on purpose: a user's Knowledge/docs/ or a README.md
+# inside a project folder is the user's content and stays indexed.
+EXCLUDE_ROOT_DIRS = {"docs", "installers"}
+EXCLUDE_ROOT_FILES = {"CLAUDE.md", "ONBOARDING.md", "README.md"}
+EXCLUDE_ROOT_FILE_PREFIXES = ("LICENSE",)
+
+
+def is_excluded_path(rel: Path) -> bool:
+    """True when a vault-relative .md path is outside the index by location.
+
+    EXCLUDE_DIRS matches a folder name at any depth, and so does any
+    dot-folder (.obsidian, .trash, .pytest_cache, ...): tool state, never
+    notes. EXCLUDE_ROOT_DIRS / EXCLUDE_ROOT_FILES match only at the root."""
+    folders = rel.parts[:-1]
+    if any(part in EXCLUDE_DIRS or part.startswith(".") for part in folders):
+        return True
+    if folders and folders[0] in EXCLUDE_ROOT_DIRS:
+        return True
+    if not folders and (rel.name in EXCLUDE_ROOT_FILES
+                        or rel.name.startswith(EXCLUDE_ROOT_FILE_PREFIXES)):
+        return True
+    return rel.name.startswith(EXCLUDE_FILENAME_PREFIXES)
+
 MIN_BODY_CHARS = 100
 MAX_FAILURES = 3
 
@@ -287,9 +313,7 @@ def scan_vault() -> tuple[dict[str, dict], dict[str, str]]:
     excluded: dict[str, str] = {}
     for md in VAULT_PATH.rglob("*.md"):
         rel = md.relative_to(VAULT_PATH)
-        if any(part in EXCLUDE_DIRS for part in rel.parts):
-            continue
-        if rel.name.startswith(EXCLUDE_FILENAME_PREFIXES):
+        if is_excluded_path(rel):
             continue
         try:
             stat = md.stat()
