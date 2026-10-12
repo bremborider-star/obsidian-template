@@ -28,7 +28,7 @@ what --check compares the committed lock against.
 Usage (maintainer, with network; needs uv:  pipx install uv):
     python3 installers/lib/lock_requirements.py              # re-lock; keeps pins that still resolve
     python3 installers/lib/lock_requirements.py --upgrade    # move every pin to its latest release
-    python3 installers/lib/lock_requirements.py --check      # verify both locks; write nothing
+    python3 installers/lib/lock_requirements.py --check      # verify every lock (all three); write nothing
     python3 installers/lib/lock_requirements.py --audit-sets DIR   # pip-audit inputs (no network)
 """
 from __future__ import annotations

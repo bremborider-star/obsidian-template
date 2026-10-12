@@ -354,7 +354,7 @@ Run any control by hand. Useful flags:
   control failing for as long as nothing else happens to trigger it — while
   the state on disk has in fact been clean since the moment you adopted.
   The integrity monitor's `--update` prints a stamped `[integrity] scanning
-  <scope> ...` / `scanned <scope>: N files in Ts` pair to stderr for each
+  <scope> ...` / `scanned <scope>: N <unit> in Ts` (files for most scopes; agents or tasks, entries, markdown files or findings for the rest) pair to stderr for each
   scope, so a long venv hash (minutes on Windows, ~15,000 files) is visibly
   alive. A hand run in a terminal prints the same; a scheduled check does not,
   so the job log keeps only its findings.
