@@ -1,0 +1,23 @@
+# Test-suite dependencies (Templates/Scripts/tests). Installed only through
+# requirements-dev.lock, and only into the separate test venv
+# Templates/Scripts/.venv-test -- never the scheduled jobs' .venv, which stays
+# exactly requirements.lock. Edit this file, then run
+# python3 installers/lib/lock_requirements.py and commit both.
+#
+# Every package a version of which is also in requirements.lock is held to
+# that version, so the suite tests the releases the jobs run.
+-c requirements.lock
+
+pytest
+pytest-cov
+# The modules under test import these at module scope, so a missing one is a
+# collection error for the whole suite, not a skipped file.
+pyyaml
+python-dotenv
+requests
+# podcast_transcribe parses untrusted XML through it (bandit B314).
+defusedxml
+# whisper_onnx.py imports numpy at module scope and test_whisper_onnx.py
+# imports that module directly. At runtime numpy arrives only on Windows ARM64,
+# through onnxruntime, which is why requirements.txt does not name it.
+numpy

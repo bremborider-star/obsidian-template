@@ -166,7 +166,7 @@ want() {   # want <pass>
             local files; files="$(changed_files)"
             [[ -z "$files" ]] && return 1
             case "$1" in
-                sca)     grep -qE 'requirements(-dropper)?\.(txt|lock)|lock_requirements\.py|lock_extras\.py|installers/lib/common\.sh|windows/common\.ps1' <<<"$files" ;;
+                sca)     grep -qE 'requirements(-dropper|-dev)?\.(txt|lock)|lock_requirements\.py|lock_extras\.py|installers/lib/common\.sh|windows/common\.ps1' <<<"$files" ;;
                 sast)    grep -qE '\.py$|security-suppressions\.txt' <<<"$files" ;;
                 shell)   grep -qE '\.sh$'                          <<<"$files" ;;
                 secrets) return 0 ;;
@@ -310,7 +310,9 @@ if want sast; then
     if ! have bandit; then
         skip_missing sast bandit "pipx install bandit"
     else
-        bandit -q -r Templates/Scripts installers -ll -f json \
+        # -x: a venv (the vault's .venv, the suite's .venv-test) is installed
+        # third-party code, hash-pinned and audited by the SCA pass, not ours.
+        bandit -q -r Templates/Scripts installers -ll -x '*/.venv/*,*/.venv-test/*' -f json \
                -o "$OUT/bandit.json" >"$OUT/bandit.log" 2>&1
         n="$("$PY" installers/lib/suppressions.py apply bandit "$OUT/bandit.json" \
                 2>"$OUT/bandit-live.txt" || echo '?')"

@@ -33,6 +33,9 @@ REPO = Path(__file__).resolve().parents[3]
 SCRIPTS = REPO / "Templates" / "Scripts"
 LOCK_TEXT = (SCRIPTS / "requirements.lock").read_text(encoding="utf-8")
 DROPPER_LOCK = (SCRIPTS / "requirements-dropper.lock").read_text(encoding="utf-8")
+DEV_LOCK = (SCRIPTS / "requirements-dev.lock").read_text(encoding="utf-8")
+DEV_REQ = (SCRIPTS / "requirements-dev.txt").read_text(encoding="utf-8")
+RUN_TESTS = (SCRIPTS / "tests" / "run_tests.sh").read_text(encoding="utf-8")
 REQ_TEXT = (SCRIPTS / "requirements.txt").read_text(encoding="utf-8")
 COMMON_SH = (REPO / "installers" / "lib" / "common.sh").read_text(encoding="utf-8")
 COMMON_PS = (SCRIPTS / "windows" / "common.ps1").read_text(encoding="utf-8")
@@ -60,7 +63,8 @@ def _norm(name: str) -> str:
 
 # ---- the locks themselves --------------------------------------------------
 
-@pytest.mark.parametrize("text", [LOCK_TEXT, DROPPER_LOCK], ids=["main", "dropper"])
+@pytest.mark.parametrize("text", [LOCK_TEXT, DROPPER_LOCK, DEV_LOCK],
+                         ids=["main", "dropper", "dev"])
 def test_every_locked_release_carries_a_hash(text: str) -> None:
     assert len(L.entries(text)) >= 20
     assert L.unhashed(text) == []
@@ -82,7 +86,7 @@ def test_every_requirement_is_in_its_lock() -> None:
 
 
 def test_the_locks_name_the_tool_that_writes_them() -> None:
-    for text in (LOCK_TEXT, DROPPER_LOCK):
+    for text in (LOCK_TEXT, DROPPER_LOCK, DEV_LOCK):
         assert "python3 installers/lib/lock_requirements.py" in text.splitlines()[1]
 
 
@@ -175,7 +179,8 @@ def test_audit_sets_hold_one_version_per_package_and_cover_every_pin(tmp_path, m
 def test_the_real_locks_split_into_audit_sets_covering_every_pin(tmp_path) -> None:
     files = L.audit_sets(tmp_path)
     got = {ln for f in files for ln in f.read_text(encoding="utf-8").split()}
-    assert got == {f"{n}=={v}" for t in (LOCK_TEXT, DROPPER_LOCK) for n, v in L.pins(t)}
+    assert got == {f"{n}=={v}" for t in (LOCK_TEXT, DROPPER_LOCK, DEV_LOCK)
+                   for n, v in L.pins(t)}
     for f in files:
         names = [ln.split("==")[0] for ln in f.read_text(encoding="utf-8").split()]
         assert len(names) == len(set(names)), f
@@ -312,7 +317,8 @@ def test_no_installer_or_script_pip_installs_outside_a_lock() -> None:
     a lock with --require-hashes; messages only point at the installer."""
     files = [REPO / "install.sh", REPO / "update.sh", *COMPONENTS.glob("*.sh"),
              *(REPO / "installers" / "lib").glob("*.sh"),
-             *(SCRIPTS / "windows").glob("*.ps1"), *SCRIPTS.glob("*.sh"), *SCRIPTS.glob("*.py")]
+             *(SCRIPTS / "windows").glob("*.ps1"), *SCRIPTS.glob("*.sh"), *SCRIPTS.glob("*.py"),
+             *(SCRIPTS / "tests").glob("*.sh"), *(SCRIPTS / "tests").glob("*.ps1")]
     offenders = []
     for f in files:
         for ln in _pip_lines(f.read_text(encoding="utf-8")):
@@ -380,6 +386,8 @@ def test_the_sca_pass_audits_every_pin_and_checks_the_locks() -> None:
     for path in ("Templates/Scripts/requirements.txt", "Templates/Scripts/requirements.lock",
                  "Templates/Scripts/requirements-dropper.txt",
                  "Templates/Scripts/requirements-dropper.lock",
+                 "Templates/Scripts/requirements-dev.txt",
+                 "Templates/Scripts/requirements-dev.lock",
                  "installers/lib/lock_requirements.py"):
         assert re.search(trigger, path), path
 
@@ -526,3 +534,53 @@ def test_windows_reinstalls_everything_only_when_the_lock_is_new() -> None:
     assert "@reinstall -r $lock" in body[pip_at:pip_at + 200]
     # written only after Invoke-Native returned (it throws on a failed pip)
     assert body.index("Set-Content -LiteralPath $stamp -Value $want") > pip_at
+
+
+# ---- the test suite's own lock and venv (Windows tester, 2026-10-12) --------
+# run_tests.sh pip-installed pytest, pytest-cov & co. unpinned, unhashed, into
+# whatever python3 came first on PATH, and the Windows instructions put them
+# into the jobs' own .venv, which then carried packages no lock names.
+
+def test_the_dev_lock_is_a_lockset_on_every_vault_target() -> None:
+    dev = [ls for ls in L.LOCKSETS if ls.lock.name == "requirements-dev.lock"]
+    assert len(dev) == 1 and dev[0].req.name == "requirements-dev.txt"
+    assert dev[0].targets == L.TARGETS and dev[0].floor == L.PYTHON_FLOOR
+
+
+def test_the_dev_lock_holds_shared_packages_at_the_runtime_lock_versions() -> None:
+    assert re.search(r"(?m)^-c requirements\.lock$", DEV_REQ)
+    # A constraint binds only where its marker holds: tomli is a runtime pin
+    # below 3.11 only, so the dev lock is free to choose it on 3.11. Compare
+    # an entry where the runtime lock pins the same package unconditionally
+    # or under the very same marker.
+    runtime = L.entries(LOCK_TEXT)
+    drift = []
+    for n, v, mk in L.entries(DEV_LOCK):
+        same = [rv for rn, rv, rmk in runtime if rn == n and rmk in ("", mk)]
+        if same and v not in same:
+            drift.append(f"{n}=={v} ; {mk}")
+    assert drift == []
+    assert len([1 for n, _, mk in L.entries(DEV_LOCK)
+                if any(rn == n and rmk in ("", mk) for rn, _, rmk in runtime)]) >= 8
+    for n in ("pytest", "pytest-cov", "numpy", "pyyaml", "requests", "defusedxml"):
+        assert n in {p for p, _ in L.pins(DEV_LOCK)}, n
+
+
+def test_the_runtime_lock_carries_no_test_tool() -> None:
+    locked = {n for n, _ in L.pins(LOCK_TEXT)}
+    assert not locked & {"pytest", "pytest-cov", "coverage", "pluggy", "iniconfig"}
+
+
+def test_run_tests_installs_only_the_dev_lock_into_its_own_venv() -> None:
+    assert 'VENV="$SCRIPTS/.venv-test"' in RUN_TESTS
+    assert re.search(r'install_requirements "\$VPY" "\$SCRIPTS/requirements-dev\.txt" '
+                     r'requirements-dev\.lock', RUN_TESTS)
+    assert 'source "$REPO/installers/lib/common.sh"' in RUN_TESTS
+    assert re.search(r'"\$VPY" -m pytest', RUN_TESTS)
+    code = [ln for ln in RUN_TESTS.splitlines() if not ln.lstrip().startswith("#")]
+    assert not [ln for ln in code if re.search(r"\bpip3?\b|\.venv/|python3 -m pytest", ln)]
+
+
+def test_the_test_venv_is_ignored_and_kept_out_of_bandit() -> None:
+    assert "Templates/Scripts/.venv-test/" in (REPO / ".gitignore").read_text(encoding="utf-8")
+    assert "*/.venv-test/*" in CHECKS[CHECKS.index("bandit -q -r"):][:200]

@@ -26,7 +26,13 @@ ORDINARY = "---\ntitle: Ordinary\ntags:\n  - Strategy\n  - AI\n---\nbody text\n"
 def _import(name: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    monkeypatch.setitem(sys.modules, "anthropic", types.ModuleType("anthropic"))
+    # The module annotates with anthropic.Anthropic at def time; Python 3.14
+    # defers annotations (PEP 649) but 3.10-3.13 evaluate them on import, so
+    # an empty fake module was an AttributeError there (found 2026-10-12 when
+    # the suite first ran in a 3.13 test venv).
+    fake = types.ModuleType("anthropic")
+    fake.Anthropic = type("Anthropic", (), {})
+    monkeypatch.setitem(sys.modules, "anthropic", fake)
     monkeypatch.delitem(sys.modules, name, raising=False)
     mod = importlib.import_module(name)
     monkeypatch.delitem(sys.modules, name, raising=False)

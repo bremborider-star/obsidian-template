@@ -3,19 +3,25 @@
 # run_tests.sh — entry point for the security-controls test suite.
 #
 # What this does:
-#   1. On first run, pip-installs the test dependencies (one-shot): pytest,
-#      pytest-cov, numpy, pyyaml, python-dotenv, requests, defusedxml.
-#      numpy is a test-only dependency here: whisper_onnx.py imports it at
-#      module scope, and test_whisper_onnx.py imports that module directly,
-#      so a missing numpy is a collection error for the whole suite rather
-#      than a skip. At runtime the backend is lazily imported and only on
-#      Windows ARM64, where onnxruntime pulls numpy in transitively — which
-#      is why requirements.txt does not name it.
+#   1. Builds (once) a separate test venv, Templates/Scripts/.venv-test, and
+#      installs the test dependencies into it ONLY from requirements-dev.lock:
+#      every package at a locked release, every file hash-checked, through
+#      the installers' own install_requirements (installers/lib/common.sh).
+#      Never into the scheduled jobs' .venv, which stays exactly
+#      requirements.lock, and never into the system Python. Until 2026-10-12
+#      this step pip-installed pytest & co. unpinned and unhashed into
+#      whatever python3 was first on PATH. What the suite needs, and why
+#      (numpy, for one), is in requirements-dev.txt.
 #   2. Runs the suite under pytest with coverage on the patched .py
 #      files (integrity_monitor, plugin_integrity_check,
 #      youtube_summarize).
 #   3. Generates an HTML coverage report at coverage_html/ alongside.
 #   4. Prints a final pass/fail + coverage summary.
+#
+# The base interpreter is $TEST_PYTHON, else the first Homebrew python3.13 /
+# 3.12 / 3.14 / python3 found; the lock's own checks (Apple Silicon,
+# Python 3.10-3.14, GIL build) refuse anything it has no wheels for. Delete
+# .venv-test to rebuild it from scratch.
 #
 # Default behavior is fully mocked — no real Keychain reads, no real
 # network, no real ~/.local/share/obsidian-security touch. See
@@ -38,27 +44,30 @@ cd "$HERE"
 # 1. Dependency check.
 # ---------------------------------------------------------------------------
 
-missing=()
-python3 -c "import pytest" 2>/dev/null || missing+=("pytest")
-python3 -c "import pytest_cov" 2>/dev/null || missing+=("pytest-cov")
-python3 -c "import numpy" 2>/dev/null || missing+=("numpy")
-# pyyaml, python-dotenv and requests are runtime deps of the modules under
-# test, imported at MODULE scope - so a missing one is a collection error for
-# the whole suite, not a skipped file. They live in requirements.txt for the
-# vault's venv, but this suite runs against the ambient python3 (it tests a
-# repo checkout, no vault install required), so it has to ensure them here.
-# A developer machine usually has them already and never notices; a fresh
-# clone does not, which is where the documented entry point broke.
-python3 -c "import yaml" 2>/dev/null || missing+=("pyyaml")
-python3 -c "import dotenv" 2>/dev/null || missing+=("python-dotenv")
-python3 -c "import requests" 2>/dev/null || missing+=("requests")
-# defusedxml: podcast_transcribe imports it at module scope to parse
-# untrusted XML safely (bandit B314, closed 2026-09-25).
-python3 -c "import defusedxml" 2>/dev/null || missing+=("defusedxml")
+REPO="$(cd "$SCRIPTS/../.." && pwd)"
+VENV="$SCRIPTS/.venv-test"
+VPY="$VENV/bin/python"
+# shellcheck source=../../../installers/lib/common.sh
+source "$REPO/installers/lib/common.sh"
 
-if [ ${#missing[@]} -gt 0 ]; then
-    echo "[tests] installing missing test dependencies: ${missing[*]}"
-    pip3 install --break-system-packages --quiet "${missing[@]}"
+if [ ! -x "$VPY" ]; then
+    base="${TEST_PYTHON:-}"
+    if [ -z "$base" ]; then
+        for cand in /opt/homebrew/bin/python3.13 /opt/homebrew/bin/python3.12 \
+                    /opt/homebrew/bin/python3.14 "$(command -v python3 || true)"; do
+            if [ -n "$cand" ] && [ -x "$cand" ]; then base="$cand"; break; fi
+        done
+    fi
+    if [ -z "$base" ]; then
+        echo "[tests] FATAL: no python3 found; set TEST_PYTHON" >&2
+        exit 2
+    fi
+    echo "[tests] creating the test venv $VENV from $base"
+    "$base" -m venv "$VENV"
+fi
+if ! install_requirements "$VPY" "$SCRIPTS/requirements-dev.txt" requirements-dev.lock; then
+    echo "[tests] FATAL: could not install requirements-dev.lock into $VENV" >&2
+    exit 2
 fi
 
 # Verify the runtime files under test are present (otherwise tests won't import).
@@ -108,7 +117,7 @@ export PYTHONPATH="$SCRIPTS:${PYTHONPATH:-}"
 set +e
 # Empty-array-safe expansion under set -u: ${array[@]+"${array[@]}"}
 # expands to nothing when the array is empty, otherwise to the elements.
-python3 -m pytest \
+PYTHONNOUSERSITE=1 "$VPY" -m pytest \
     ${cov_args[@]+"${cov_args[@]}"} \
     ${extra_args[@]+"${extra_args[@]}"}
 rc=$?

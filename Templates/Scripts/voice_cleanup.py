@@ -11,7 +11,9 @@ Usage:
 Setup:
     1. Run the installer: it installs Templates/Scripts/requirements.lock
        (hash-checked) into the venv
-    2. Create an iOS Shortcut (see docs/Voice Note to Obsidian Guide.md)
+    2. Create the iOS dictation Shortcut that mails a signed voice drop
+       ("Voice — from dictation" in docs/Source-Mail-Producer-Setup.md);
+       the workflow end to end is docs/Voice Notes (Optional).md
     3. Edit the config section below to match your paths
     4. Set ANTHROPIC_API_KEY in ~/dev/secrets/.env (or your preferred location).
        To route through an institutional AI gateway instead, set LLM_BASE_URL

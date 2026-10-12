@@ -20,6 +20,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -787,3 +788,55 @@ def test_a_finding_against_a_pre_normalisation_baseline_says_so(monkeypatch) -> 
                          "a re-registration alone also shows here, once")
     # Against a current baseline the same re-registration is not a finding.
     assert im.diff_dir("launchagents", cur, _scan(monkeypatch, old_xml)) == []
+
+
+# ---------------------------------------------------------------------------
+# Progress output (Windows tester, 2026-10-12): --update hashed a ~14,690-file
+# venv for twelve minutes with nothing printed, so the installer looked hung.
+# ---------------------------------------------------------------------------
+
+class TestProgress:
+    @pytest.fixture
+    def sandbox(self, tmp_path: Path, sample_vault: Path,
+                tmp_state_dir: Path) -> list[str]:
+        scripts = tmp_path / "scripts"
+        (scripts / ".venv" / "lib").mkdir(parents=True)
+        (scripts / "alpha.py").write_text("# alpha\n")
+        (scripts / ".venv" / "lib" / "mod.py").write_text("x = 1\n")
+        agents = tmp_path / "LaunchAgents"
+        agents.mkdir()
+        return ["--scripts-dir", str(scripts), "--launchagents-dir", str(agents),
+                "--vault", str(sample_vault)]
+
+    def test_update_prints_a_progress_line_per_scope(
+            self, sandbox: list, silent_notify: list, silent_kickstart: list,
+            capsys: pytest.CaptureFixture) -> None:
+        assert im.main(sandbox + ["--update"]) == 0
+        err = capsys.readouterr().err
+        for scope in ("scripts", "launchagents", "venv", "templates",
+                      "vault_md_count"):
+            assert f"[integrity] scanning {scope} ..." in err, err
+            assert re.search(
+                rf"\d{{4}}-\d\d-\d\d[ T]\S+ \[integrity\] scanned {scope}: "
+                rf"\d+ [a-z/ ]+ in \d+\.\ds", err), err
+        assert re.search(r"\[integrity\] scanned venv: 1 files in", err), err
+
+    def test_json_stdout_still_parses_with_progress_on(
+            self, sandbox: list, silent_notify: list, silent_kickstart: list,
+            capsys: pytest.CaptureFixture, monkeypatch) -> None:
+        assert im.main(sandbox + ["--update"]) == 0
+        capsys.readouterr()
+        monkeypatch.setattr(im, "_isatty", lambda _s: True)   # a person watching
+        im.main(sandbox + ["--json"])
+        out, err = capsys.readouterr()
+        assert json.loads(out)["status"] in ("ok", "drift")
+        assert "scanned venv" in err and "scanned venv" not in out
+
+    def test_a_scheduled_check_stays_quiet(
+            self, sandbox: list, silent_notify: list, silent_kickstart: list,
+            capsys: pytest.CaptureFixture, monkeypatch) -> None:
+        assert im.main(sandbox + ["--update"]) == 0
+        capsys.readouterr()
+        monkeypatch.setattr(im, "_isatty", lambda _s: False)
+        im.main(sandbox)
+        assert "scanning" not in capsys.readouterr().err

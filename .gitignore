@@ -17,6 +17,8 @@ installers/profiles/*.env
 
 # Python virtual environment used by Templates/Scripts/
 Templates/Scripts/.venv/
+# The test suite's own venv (tests/run_tests.sh, from requirements-dev.lock)
+Templates/Scripts/.venv-test/
 Templates/Scripts/__pycache__/
 
 # Bytecode cache from the Z_attachments group-photo scripts

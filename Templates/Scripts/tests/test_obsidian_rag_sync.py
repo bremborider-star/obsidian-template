@@ -337,3 +337,39 @@ def test_upload_gate_reads_the_tier_the_way_every_gate_does(rag, fm: str, exclud
     is_excluded = value is not None and (value in rag.EXCLUDED_CLASSIFICATIONS
                                          or value not in rag.KNOWN_CLASSIFICATIONS)
     assert is_excluded == excluded, value
+
+
+# ---------------------------------------------------------------------------
+# The template's own files stay out of the index (Windows tester, 2026-10-12).
+# The repo IS the vault: a dry run would have indexed docs/, installers/, the
+# root CLAUDE.md / ONBOARDING.md / README.md and .pytest_cache/README.md.
+# ---------------------------------------------------------------------------
+
+def _note(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("---\nclassification: public\n---\n" + "body text " * 30,
+                    encoding="utf-8")
+
+
+def test_template_files_and_dot_folders_are_not_indexed(rag):
+    vault = rag.VAULT_PATH
+    excluded = ["docs/Setup.md", "installers/README.md", "CLAUDE.md",
+                "ONBOARDING.md", "README.md", "LICENSE.md",
+                ".pytest_cache/README.md", "Knowledge/.cache/x.md"]
+    for rel in excluded:
+        _note(vault / rel)
+    _note(vault / "Notes" / "kept.md")
+    all_files, _ = rag.scan_vault()
+    assert "Notes/kept.md" in all_files
+    leaked = [rel for rel in excluded if rel in all_files]
+    assert leaked == [], f"template / dot-folder files indexed: {leaked}"
+
+
+def test_user_docs_and_readmes_below_the_root_are_still_indexed(rag):
+    vault = rag.VAULT_PATH
+    kept = ["Knowledge/docs/Runbook.md", "Notes/installers/Plan.md",
+            "Creations/Project/README.md", "Knowledge/CLAUDE.md"]
+    for rel in kept:
+        _note(vault / rel)
+    all_files, _ = rag.scan_vault()
+    assert sorted(rel for rel in kept if rel in all_files) == sorted(kept)

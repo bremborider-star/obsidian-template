@@ -31,23 +31,34 @@ cd Templates/Scripts/tests
 ./run_tests.sh
 ```
 
-First run installs whichever of `pytest`, `pytest-cov` and `numpy` are missing,
-via `pip3 install --break-system-packages`. Subsequent runs skip the install
-step. `numpy` is needed because `test_whisper_onnx.py` imports
-`whisper_onnx.py`, which imports numpy at module scope — without it the whole
-suite fails at collection, not just that file. (`requirements.txt` doesn't name
-numpy: the ONNX backend is imported lazily and only on Windows ARM64, where
-`onnxruntime` brings numpy along.)
+The suite runs in its own venv, `Templates/Scripts/.venv-test` (ignored by
+version control), never the scheduled jobs' `.venv`: that one stays exactly
+`requirements.lock`. The first run creates it (from `$TEST_PYTHON`, else
+Homebrew `python3.13`/`3.12`/`3.14`) and installs `requirements-dev.lock`
+into it — every package at a locked release, hash-checked, through the
+installers' own `install_requirements`. Later runs install only what is
+missing. `requirements-dev.txt` says what the suite needs and why (`numpy`, for
+one: `whisper_onnx.py` imports it at module scope, though at runtime only
+Windows ARM64 gets it, via `onnxruntime`); it is constrained to
+`requirements.lock`, so shared packages are tested at the versions the jobs
+run. Change it like any lock: edit the `.txt`, run
+`python3 installers/lib/lock_requirements.py`, commit both. Delete
+`.venv-test` to rebuild it.
 
-**On Windows**, `run_tests.sh` doesn't apply (`pip3
---break-system-packages`). Install the test deps once, then run from the
-repo root — no `PYTHONPATH` needed, `conftest.py` puts `Templates/Scripts/`
-on `sys.path` itself:
+**On Windows**, `run_tests.sh` doesn't apply. Build the same test venv once
+from the same lock, then run from the repo root — no `PYTHONPATH` needed,
+`conftest.py` puts `Templates/Scripts/` on `sys.path` itself:
 
 ```powershell
-.\Templates\Scripts\.venv\Scripts\python.exe -m pip install pytest pytest-cov numpy
-.\Templates\Scripts\.venv\Scripts\python.exe -m pytest Templates\Scripts\tests
+py -3.13 -m venv Templates\Scripts\.venv-test
+.\Templates\Scripts\.venv-test\Scripts\python.exe -m pip install --disable-pip-version-check --require-hashes --no-deps --only-binary :all: -r Templates\Scripts\requirements-dev.lock
+.\Templates\Scripts\.venv-test\Scripts\python.exe -m pytest Templates\Scripts\tests
 ```
+
+Do not install the test tools into `.venv`. One that already has them (the
+instructions here said to, before 2026-10-12) carries packages no lock names;
+the installer lists them as "installed but not in requirements.lock". Delete
+`.venv` and re-run the installer to get a venv that is exactly the lock.
 
 Output ends with a coverage table per module and an HTML report at
 `coverage_html/index.html` (gitignored — regenerate locally as needed).

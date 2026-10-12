@@ -9,9 +9,10 @@ merely surprising upstream release cannot reach an adopter's venv until a
 maintainer reruns this tool and commits the diff -- the same review moment
 installers/lib/pin_plugins.py creates for plugins.
 
-Two locks:
+Three locks:
   Templates/Scripts/requirements.txt         -> requirements.lock          (the vault venv)
   Templates/Scripts/requirements-dropper.txt -> requirements-dropper.lock  (Markitdown Dropper app)
+  Templates/Scripts/requirements-dev.txt     -> requirements-dev.lock      (the test venv, .venv-test)
 
 Each lock is a universal resolve (uv), so one file serves every supported
 platform. --only-binary closes the gap --require-hashes leaves open: a source
@@ -76,6 +77,12 @@ LOCKSETS = [
     LockSet("requirements.txt", "requirements.lock", PYTHON_FLOOR, TARGETS),
     LockSet("requirements-dropper.txt", "requirements-dropper.lock", "3.13",
             [("aarch64-apple-darwin", ("3.13",))]),
+    # The test suite's own venv (Templates/Scripts/.venv-test), so pytest and
+    # its dependencies never enter the scheduled jobs' venv. Every target the
+    # suite runs on, which is every target the vault runs on. requirements-
+    # dev.txt constrains itself to requirements.lock (-c), so re-lock this
+    # after that one; --check fails while the two disagree.
+    LockSet("requirements-dev.txt", "requirements-dev.lock", PYTHON_FLOOR, TARGETS),
 ]
 MAIN = LOCKSETS[0]
 LOCK = MAIN.lock                 # kept for callers and tests

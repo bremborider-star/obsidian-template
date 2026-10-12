@@ -353,6 +353,11 @@ Run any control by hand. Useful flags:
   `LastExitStatus` 256), and the morning dashboard's pipeline tile shows the
   control failing for as long as nothing else happens to trigger it — while
   the state on disk has in fact been clean since the moment you adopted.
+  The integrity monitor's `--update` prints a stamped `[integrity] scanning
+  <scope> ...` / `scanned <scope>: N files in Ts` pair to stderr for each
+  scope, so a long venv hash (minutes on Windows, ~15,000 files) is visibly
+  alive. A hand run in a terminal prints the same; a scheduled check does not,
+  so the job log keeps only its findings.
 - `--json` — machine-readable report, suppresses notifications and alert-log writes.
 - `OBSIDIAN_SECURITY_STATE_DIR=/tmp/sandbox` — redirect the state directory
   for one invocation, so a manual run writes its baselines somewhere
@@ -414,7 +419,8 @@ controls among them (`integrity_monitor.py`, `plugin_integrity_check.py`,
 security scenarios (DNS rebinding, redirect-to-private-IP, allowlist tamper
 detection, HMAC forgery resistance). Fully mocked — safe to run repeatedly on a live Mac;
 see `Templates/Scripts/tests/README.md`. Run it with
-`Templates/Scripts/tests/run_tests.sh`.
+`Templates/Scripts/tests/run_tests.sh`, which runs it in a separate test venv
+built only from the hash-checked `requirements-dev.lock`.
 
 ## Uninstall
 
