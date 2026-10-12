@@ -962,3 +962,31 @@ def test_inactive_counts_as_needing_attention_on_the_page():
     assert '<span class="status-pill fail">inactive</span>' in out
     assert "1 need attention" in out
     assert "all healthy" not in out
+
+
+# ---------------------------------------------------------------------------
+# An auth diagnosis comes from the recent runs only (2026-10-12)
+# ---------------------------------------------------------------------------
+
+_OLD_EXPIRY = ("2026-09-04 08:00:01 meeting_pull: starting (attempt 1/3)\n"
+               "Failed to authenticate: OAuth session expired and could not be refreshed\n"
+               "2026-09-04 08:00:02 meeting_pull: producer exited 1 - no handoff written\n")
+
+
+def test_a_weeks_old_expiry_is_not_todays_diagnosis(tmp_path):
+    log = tmp_path / "meeting-pull.log"
+    log.write_text(_OLD_EXPIRY +
+                   "2026-10-09 08:00:00 meeting_pull: today's handoff already exists\n"
+                   "2026-10-12 05:40:46 meeting_pull: the API host is not reachable yet\n",
+                   encoding="utf-8")
+    assert md.cli_auth_defect(str(log)) is None
+
+
+def test_an_expiry_in_the_latest_run_is_still_verified(tmp_path):
+    log = tmp_path / "meeting-pull.log"
+    log.write_text("2026-10-11 05:00:00 meeting_pull: today's handoff already exists\n"
+                   "2026-10-12 05:00:01 meeting_pull: starting (attempt 1/3)\n"
+                   "Failed to authenticate: OAuth session expired and could not be refreshed\n"
+                   "2026-10-12 05:00:02 meeting_pull: producer exited 1 - no handoff written\n",
+                   encoding="utf-8")
+    assert md.cli_auth_defect(str(log)).startswith("Verified: the Claude CLI's stored session has expired")

@@ -978,6 +978,34 @@ _CLI_ORG_POLICY_RE = re.compile(
     re.I)
 
 
+_LOG_STAMP_RE = re.compile(r"^\[?(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})")
+RECENT_RUN_HOURS = 12
+
+
+def _recent_run_lines(lines: list[str], hours: int = RECENT_RUN_HOURS) -> list[str]:
+    """The tail of `lines` that belongs to the job's recent runs: back to the
+    first timestamped line more than `hours` older than the newest one. The
+    CLI's own lines carry no timestamp and go with the run lines around them.
+
+    A diagnosis read from the whole tail quoted a five-week-old "OAuth session
+    expired" as the cause of a 2026-10-12 failure whose own lines said the
+    network was not up yet, while the session had been verified valid since."""
+    newest = None
+    for i in range(len(lines) - 1, -1, -1):
+        m = _LOG_STAMP_RE.match(lines[i].strip())
+        if not m:
+            continue
+        try:
+            ts = _dt.datetime.fromisoformat(f"{m.group(1)} {m.group(2)}")
+        except ValueError:
+            continue
+        if newest is None:
+            newest = ts
+        elif (newest - ts).total_seconds() > hours * 3600:
+            return lines[i + 1:]
+    return lines
+
+
 def cli_auth_defect(path: str) -> str | None:
     """A CHECKED expired-Claude-CLI-session in this job's log, or None.
 
@@ -992,7 +1020,7 @@ def cli_auth_defect(path: str) -> str | None:
     heals on rebuild, but a scheduled job can never re-authenticate, so this
     is the one diagnosis that is useless unless it names the human step.
     """
-    for ln in reversed(_log_tail_lines(path)):
+    for ln in reversed(_recent_run_lines(_log_tail_lines(path))):
         # First: the CLI's 403 for this names a tenant policy, and its text can
         # also contain words the session patterns match. /login cannot fix it.
         if _CLI_ORG_POLICY_RE.search(ln):
