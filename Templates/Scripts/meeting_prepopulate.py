@@ -101,11 +101,6 @@ FENCE_PREP_END = '<!-- meeting-prepopulate:prep:end -->'
 FENCE_INVITE_START = '<!-- meeting-prepopulate:invite:start -->'
 FENCE_INVITE_END = '<!-- meeting-prepopulate:invite:end -->'
 
-# Classification thresholds (Pre-Pop Spec §5.2)
-GROUP_MIN = 2
-GROUP_MAX = 9
-BROADCAST_MIN = 10
-
 # Personal email domains (for stub Email-Personal vs Email-Work routing)
 PERSONAL_DOMAINS = {
     'gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com',
@@ -972,6 +967,16 @@ class GroupsIndex:
                  sum(1 for v in self.stem_to_members.values() if v),
                  n_aliases)
 
+    def attendee_people(self, attendee_emails: set[str]) -> set[str]:
+        """The people behind a set of addresses, as tier 3 counts them: one
+        People stem per person however many addresses they appear at. An
+        address with no People note stays a distinct (unmatchable) person
+        keyed by the address. meeting_group_backfill.py reports overlap
+        through this too, so its numbers are the ones the match was made on.
+        """
+        return {self._people.email_to_stem.get(e.lower(), '\0' + e.lower())
+                for e in attendee_emails}
+
     def match(self, subject: str, attendee_emails: set[str]) -> str | None:
         """Match a meeting to a Groups/ entry. Three-tier:
 
@@ -1013,10 +1018,8 @@ class GroupsIndex:
             candidates.sort(reverse=True)  # prefer largest (most specific)
             return candidates[0][1]
 
-        # 3. Attendee-set overlap fallback. An attendee with no People note
-        # stays a distinct (unmatchable) person keyed by its address.
-        attendees = {self._people.email_to_stem.get(e.lower(), '\0' + e.lower())
-                     for e in attendee_emails}
+        # 3. Attendee-set overlap fallback, counted in people.
+        attendees = self.attendee_people(attendee_emails)
         best_stem: str | None = None
         best_score = 0.0
         for stem, members in self.stem_to_members.items():

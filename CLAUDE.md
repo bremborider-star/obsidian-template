@@ -162,10 +162,15 @@ installers/lib/security-checks.sh --dast     # the dynamic checks alone
   and ask whether to run them. Do not run a long pass silently, and do not skip
   the question.
 
-**Where artifacts go.** Outside the repo, to the sibling folder
-`../obsidian-security/verification-artifacts/` (for the maintainer, a
-local-only git repo with no remote), or wherever `--artifacts` /
-`$SECURITY_ARTIFACTS_DIR` points. Never into a cloud-synced folder such as
+**Where artifacts go.** Outside the repo, to
+`obsidian-security/verification-artifacts/` beside the **main** checkout (for
+the maintainer, a local-only git repo with no remote), or wherever
+`--artifacts` / `$SECURITY_ARTIFACTS_DIR` points. The script works the main
+checkout out from the shared git dir, so a run from a worktree under
+`.claude/worktrees/` lands there too; do not read the location as `../`
+from where you are, which from a worktree is inside this checkout. Outside
+git it falls back to beside this checkout. `--print-artifact-root` prints
+where a run would write. Never into a cloud-synced folder such as
 `~/Documents`, which macOS syncs to iCloud. **Never into this
 repository:** it is public, and it IS an Obsidian vault, so scan output naming
 paths and plugin ids would both leak detail and appear as a folder in every

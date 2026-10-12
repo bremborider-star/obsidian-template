@@ -102,3 +102,19 @@ def test_drift_reports_in_the_main_checkout_are_refused_from_a_worktree(checkout
     cfg.write_text('{"task_note": "%s"}' % (main / "Actions" / "Drift.md"), encoding="utf-8")
     with pytest.raises(dr.ReviewError, match="task_note must be a .md file outside the repository"):
         dr.load_config(cfg)
+
+
+def test_an_inherited_print_root_does_not_skip_the_run(checkout, tmp_path):
+    """Only the flag may turn on --print-artifact-root. PRINT_ROOT was never
+    initialised, so PRINT_ROOT=1 in the environment made every run -- the
+    hooks' --fast and --full included -- print the path and exit 0 without
+    running a pass or writing an artifact: a pass the gates could not see."""
+    main, _ = checkout
+    art = tmp_path / "art"
+    env = {k: v for k, v in os.environ.items() if k != "SECURITY_ARTIFACTS_DIR"}
+    env.update(PRINT_ROOT="1", SECURITY_ARTIFACTS_DIR=str(art))
+    r = subprocess.run(["bash", str(main / "installers" / "lib" / "security-checks.sh"), "--fast"],
+                       cwd=main, capture_output=True, text=True, timeout=120, env=env)
+    assert r.stdout.strip() != str(art), "printed the artifact root instead of running"
+    # The run started: it made its stamped artifact directory.
+    assert list(art.glob("checks-*")), r.stdout + r.stderr

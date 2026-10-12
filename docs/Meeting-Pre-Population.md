@@ -202,9 +202,16 @@ every attendee email you want resolved to a rich People note.
 
 ## Behavior details
 
-- **Classification.** 2–9 counted attendees → a group meeting (matched against
-  `Groups/` rosters by subject); 1 → individual; 10+ → broadcast. Resources,
-  optional attendees, decliners, and `admin_emails` are not counted.
+- **Classification.** 0–1 counted other attendees → individual. Two or more →
+  a group meeting if a `Groups/` note matches, otherwise ad-hoc; there is no
+  upper size limit and no broadcast type. A group matches by subject first
+  (the group's name or an alias, exactly, then all of its title words), and
+  failing that by attendee overlap: Jaccard ≥ 0.5, or coverage ≥ 0.7, with at
+  least 2 members present. Overlap is counted in people, not addresses, over
+  the members with an email on file, and coverage is trusted only when at
+  least 70% of the group's linked members have one; otherwise only Jaccard
+  can match. Resources, optional attendees, decliners, and `admin_emails` are
+  not counted.
 - **Optional attendees on group-mailbox invites.** The rule above has one
   exception, and it exists because ignoring optional attendees outright
   produces a specific wrong answer. When a departmental or shared mailbox

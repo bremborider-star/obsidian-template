@@ -53,6 +53,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT" || { echo "cannot cd to $REPO_ROOT" >&2; exit 2; }
 
 MODE="full"
+PRINT_ROOT=0   # only --print-artifact-root may set it; never inherited
 # Artifacts land OUTSIDE the repo by default. This repo is public and it IS an
 # Obsidian vault: scan output naming file paths, plugin ids and host details
 # does not belong in it, and a new top-level folder would show up in every

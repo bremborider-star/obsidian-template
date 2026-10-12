@@ -319,9 +319,11 @@ def build_proposals(notes, gi, mp, people_idx, rev):
             if len(emails) >= 2:
                 stem = gi.match('', emails)
                 if stem:
-                    ov = len(emails & gi.stem_to_members.get(stem, set()))
+                    # Counted as the matcher counts: people, not addresses.
+                    people = gi.attendee_people(emails)
+                    ov = len(people & gi.stem_to_resolvable.get(stem, set()))
                     conf = 'overlap'
-                    why = f'{ov}/{len(emails)} attendees overlap'
+                    why = f'{ov}/{len(people)} attendees overlap'
         if stem:
             props.append(Proposal(n, stem, conf, why))
         else:
