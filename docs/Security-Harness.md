@@ -353,6 +353,11 @@ Run any control by hand. Useful flags:
   `LastExitStatus` 256), and the morning dashboard's pipeline tile shows the
   control failing for as long as nothing else happens to trigger it — while
   the state on disk has in fact been clean since the moment you adopted.
+  The integrity monitor's `--update` prints a stamped `[integrity] scanning
+  <scope> ...` / `scanned <scope>: N files in Ts` pair to stderr for each
+  scope, so a long venv hash (minutes on Windows, ~15,000 files) is visibly
+  alive. A hand run in a terminal prints the same; a scheduled check does not,
+  so the job log keeps only its findings.
 - `--json` — machine-readable report, suppresses notifications and alert-log writes.
 - `OBSIDIAN_SECURITY_STATE_DIR=/tmp/sandbox` — redirect the state directory
   for one invocation, so a manual run writes its baselines somewhere

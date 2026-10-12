@@ -100,6 +100,7 @@ import re
 import stat as _stat
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import security_common
@@ -748,6 +749,45 @@ def diff_md_count(current: int, baseline: int) -> dict | None:
     return None
 
 
+# ---------- Progress ---------------------------------------------------------
+
+def _isatty(stream) -> bool:
+    try:
+        return bool(stream.isatty())
+    except (AttributeError, ValueError):
+        return False
+
+
+class _Progress:
+    """Run one scope's scan, bracketed by a start and a finish line on stderr.
+
+    The venv scope alone hashes ~15,000 files; on Windows that took twelve
+    minutes with nothing printed, and the installer's baseline step read as
+    hung. One line as each scope starts and one as it ends, with its count and
+    the seconds it took, shows both that the run is alive and where the time
+    goes. stderr only, so --json stdout stays a single parseable document."""
+
+    UNITS = {"launchagents": "agents/tasks", "agent_config": "entries",
+             "vault_md_count": "markdown files", "bytecode": "findings",
+             "prefix_cache": "findings", "venv_bytecode": "findings"}
+
+    def __init__(self, enabled: bool) -> None:
+        self.enabled = enabled
+
+    def __call__(self, scope: str, fn):
+        if not self.enabled:
+            return fn()
+        security_common.log("integrity", f"scanning {scope} ...")
+        t0 = time.monotonic()
+        result = fn()
+        n = result if isinstance(result, int) else len(result)
+        unit = self.UNITS.get(scope, "files")
+        security_common.log(
+            "integrity",
+            f"scanned {scope}: {n} {unit} in {time.monotonic() - t0:.1f}s")
+        return result
+
+
 # ---------- Main -------------------------------------------------------------
 
 def main(argv: list[str]) -> int:
@@ -772,23 +812,30 @@ def main(argv: list[str]) -> int:
 
     persistence_error: str | None = None
     try:
-        persistence = scan_persistence(launchagents)
+        persistence = _Progress(args.update or _isatty(sys.stderr))(
+            "launchagents", lambda: scan_persistence(launchagents))
     except PersistenceScanError as exc:
         persistence, persistence_error = {}, str(exc)
         security_common.log(
             "integrity", f"persistence-agent scan failed: {persistence_error}")
 
+    # Progress goes to stderr, in the same stamped [integrity] format, on
+    # every --update and on any run a person is watching. A scheduled check
+    # stays quiet: its stderr is the launchd / Task Scheduler log, and ten
+    # lines an hour there would bury the DRIFT lines it exists to show.
+    progress = args.update or _isatty(sys.stderr)
+    timed = _Progress(progress)
     current = {
-        "scripts": scan_dir(scripts, exts=SCRIPT_EXTS),
+        "scripts": timed("scripts", lambda: scan_dir(scripts, exts=SCRIPT_EXTS)),
         "launchagents": persistence,
-        "state_dir": scan_state_dir(),
-        "script_config": scan_script_config(scripts),
-        "templates": scan_templates(vault),
-        "venv": scan_venv(scripts / ".venv"),
-        "user_site": scan_user_site(HOME),
-        "agent_config": scan_agent_config(vault, HOME),
-        "secrets": scan_secrets(HOME),
-        "vault_md_count": count_vault_md(vault),
+        "state_dir": timed("state_dir", scan_state_dir),
+        "script_config": timed("script_config", lambda: scan_script_config(scripts)),
+        "templates": timed("templates", lambda: scan_templates(vault)),
+        "venv": timed("venv", lambda: scan_venv(scripts / ".venv")),
+        "user_site": timed("user_site", lambda: scan_user_site(HOME)),
+        "agent_config": timed("agent_config", lambda: scan_agent_config(vault, HOME)),
+        "secrets": timed("secrets", lambda: scan_secrets(HOME)),
+        "vault_md_count": timed("vault_md_count", lambda: count_vault_md(vault)),
     }
 
     if args.update:
@@ -860,9 +907,9 @@ def main(argv: list[str]) -> int:
             continue
         findings += diff_dir(scope, current[scope], baseline[scope])
     findings += secrets_permission_findings(current["secrets"])
-    findings += bytecode_findings(scripts)
-    findings += prefix_cache_findings()
-    findings += venv_bytecode_findings(scripts)
+    findings += timed("bytecode", lambda: bytecode_findings(scripts))
+    findings += timed("prefix_cache", prefix_cache_findings)
+    findings += timed("venv_bytecode", lambda: venv_bytecode_findings(scripts))
     bulk = diff_md_count(current["vault_md_count"],
                          baseline.get("vault_md_count", 0))
     if bulk:
