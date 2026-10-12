@@ -162,14 +162,20 @@ def check_reachable(url: str | None) -> None:
 # successor, and a KeepAlive watcher stuck in a call is "running" as far as
 # launchd is concerned, so nothing restarts it.
 #
-# 120s is generous for what these callers actually ask for -- the tagger and
-# classifier cap max_tokens at 200-300, voice-cleanup and the summarizer at
-# 4096 -- so a call that has not returned in two minutes has failed rather
-# than being slow. Ceiling is therefore 120 x 3 = 6 minutes, and it is stated
-# in one place instead of being an emergent property of two SDK defaults.
+# 120s is generous for the short callers -- the tagger and classifier cap
+# max_tokens at 200-300 -- so a call that has not returned in two minutes has
+# failed rather than being slow. Ceiling 120 x 3 = 6 minutes, stated in one
+# place instead of being an emergent property of two SDK defaults.
+#
+# Voice-cleanup and the summarizer are the exception. Since 2026-10-12 they run
+# on a model that thinks by default, with a 16,000-token output ceiling that
+# includes the thinking; at a few dozen tokens a second a full-length reply
+# takes minutes, so they pass LONG_TIMEOUT_SEC. 300 x 3 = 15 minutes still
+# bounds the voice watcher, the KeepAlive job the paragraph above warns about.
 #
 # Both are setdefault, so a caller that genuinely needs longer still can.
 LLM_TIMEOUT_SEC = float(os.environ.get("LLM_REQUEST_TIMEOUT", "120"))
+LONG_TIMEOUT_SEC = 300.0
 LLM_MAX_RETRIES = int(os.environ.get("LLM_MAX_RETRIES", "2"))
 
 

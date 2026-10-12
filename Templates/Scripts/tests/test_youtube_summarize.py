@@ -1115,7 +1115,10 @@ class TestSonnet55Call:
                 def create(**kw):
                     seen.update(kw)
                     return msg
-        monkeypatch.setattr(llm_endpoint, "client", lambda **kw: _Client())
+        def _make(**kw):
+            seen["client_kwargs"] = kw
+            return _Client()
+        monkeypatch.setattr(llm_endpoint, "client", _make)
         out = ys.summarize("transcript", model=ys.DEFAULT_MODEL, verbose=False)
         return out, seen
 
@@ -1126,6 +1129,9 @@ class TestSonnet55Call:
         assert out == "summary"
         assert seen["model"] == "claude-sonnet-5-5"
         assert seen["max_tokens"] == ys.MAX_TOKENS >= 16000
+        # A full-length reply takes minutes; the short default would cut it.
+        import llm_endpoint
+        assert seen["client_kwargs"]["timeout"] == llm_endpoint.LONG_TIMEOUT_SEC >= 300
 
     @pytest.mark.parametrize("stop,marker", [
         ("max_tokens", "output limit; the summary would be truncated"),

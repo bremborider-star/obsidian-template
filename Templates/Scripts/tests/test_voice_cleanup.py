@@ -646,3 +646,11 @@ def test_the_default_model_is_sonnet_5_5():
     assert '"claude_model": "claude-sonnet-5-5"' in src
     example = Path(voice_cleanup.__file__).with_name("voice_cleanup_config.yaml.example")
     assert 'claude_model: "claude-sonnet-5-5"' in example.read_text(encoding="utf-8")
+
+
+def test_cleanup_uses_the_long_timeout():
+    src = Path(voice_cleanup.__file__).read_text(encoding="utf-8")
+    assert 'timeout=getattr(llm_endpoint, "LONG_TIMEOUT_SEC", 300.0)' in src
+    import importlib
+    real = importlib.import_module("llm_endpoint")
+    assert real.LONG_TIMEOUT_SEC >= 300

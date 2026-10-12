@@ -456,7 +456,8 @@ def summarize(transcript: str, *, model: str, verbose: bool) -> str:
     # max_retries is explicit because it replaces a hand-rolled 429/5xx backoff
     # loop that the Gemini path carried. The SDK does the same job; saying the
     # number here keeps it a deliberate policy rather than an inherited default.
-    client = llm_endpoint.client(max_retries=3)
+    client = llm_endpoint.client(
+        max_retries=3, timeout=getattr(llm_endpoint, "LONG_TIMEOUT_SEC", 300.0))
     log(f"calling {model} via {llm_endpoint.describe()}...", verbose=verbose)
     resp = client.messages.create(
         model=model,

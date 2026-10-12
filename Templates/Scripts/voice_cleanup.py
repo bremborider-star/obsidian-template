@@ -330,7 +330,10 @@ def _resolve_client(cache: dict):
     """
     import llm_endpoint
     if cache.get("client") is None:
-        cache["client"] = llm_endpoint.client()
+        # getattr: an older llm_endpoint.py beside a newer copy of this file
+        # (a partial deploy) must not take the always-on watcher down.
+        cache["client"] = llm_endpoint.client(
+            timeout=getattr(llm_endpoint, "LONG_TIMEOUT_SEC", 300.0))
         log.info("Endpoint: %s", llm_endpoint.describe())
     return cache["client"]
 
