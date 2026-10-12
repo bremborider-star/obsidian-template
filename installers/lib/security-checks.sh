@@ -163,6 +163,39 @@ _say "repo:      $REPO_ROOT"
 _say "commit:    $(git rev-parse --short HEAD 2>/dev/null || echo 'not a checkout')"
 _say "artifacts: $OUT"
 
+# One interpreter for every Python step, chosen and checked once. A bare
+# `python3` broke the whole suite on Windows, where it can be the Microsoft
+# Store stub that only prints "Python was not found" (2026-10-11): every
+# Python pass then failed for a reason no log named. PYTHON overrides.
+PY=""
+for _c in ${PYTHON:+"$PYTHON"} python3 python; do
+    [[ -n "${PYTHON:-}" && "$_c" != "$PYTHON" ]] && break   # an override is not second-guessed
+    if command -v "$_c" >/dev/null 2>&1 \
+       && "$_c" -c 'import sys; sys.exit(sys.version_info < (3, 10))' >/dev/null 2>&1; then
+        PY="$(command -v "$_c")"
+        break
+    fi
+done
+if [[ -z "$PY" ]]; then
+    PY=false        # every Python pass then records its own FAIL
+    if [[ -n "${PYTHON:-}" ]]; then
+        _say "python:    NONE - PYTHON=$PYTHON is not a working Python 3.10+"
+    else
+        _say "python:    NONE - no Python 3.10+ found as python3 or python; set PYTHON=<path>"
+    fi
+    case "$(uname -s)" in
+        MINGW*|MSYS*|CYGWIN*) _say "           e.g. PYTHON=\"\$USERPROFILE/Obsidian/Templates/Scripts/.venv/Scripts/python.exe\"" ;;
+    esac
+else
+    _say "python:    $PY ($("$PY" -c 'import platform; print(platform.python_version())'))"
+fi
+# The security controls run on Apple's /usr/bin/python3 on macOS; elsewhere
+# the suite's own interpreter stands in. SECURITY_CONTROL_PYTHON overrides
+# (the tests use it to prove a broken control interpreter fails the check).
+CONTROL_PY="$PY"
+[[ -x /usr/bin/python3 && "$(uname -s)" == "Darwin" ]] && CONTROL_PY=/usr/bin/python3
+CONTROL_PY="${SECURITY_CONTROL_PYTHON:-$CONTROL_PY}"
+
 # ---------------------------------------------------------------------------
 # SCA
 # ---------------------------------------------------------------------------
@@ -174,7 +207,7 @@ if want sca; then
     # version per package per file, so the lock is split marker-free into sets.
     if ! have pip-audit; then
         skip_missing sca pip-audit "pipx install pip-audit"
-    elif ! sets="$(python3 installers/lib/lock_requirements.py --audit-sets "$OUT/pins" 2>"$OUT/pip-audit.log")"; then
+    elif ! sets="$("$PY" installers/lib/lock_requirements.py --audit-sets "$OUT/pins" 2>"$OUT/pip-audit.log")"; then
         record sca FAIL "could not read requirements.lock - see pip-audit.log"
         _say "  FAIL: could not build the audit sets from requirements.lock."
     else
@@ -187,7 +220,7 @@ if want sca; then
                     >>"$OUT/pip-audit.log" 2>&1; then
                 vuln=1
             fi
-            c="$(python3 -c "import json,sys;print(len(json.load(open(sys.argv[1])).get('dependencies',[])))" "$OUT/pip-audit-$k.json" 2>/dev/null || echo 0)"
+            c="$("$PY" -c "import json,sys;print(len(json.load(open(sys.argv[1])).get('dependencies',[])))" "$OUT/pip-audit-$k.json" 2>/dev/null || echo 0)"
             n=$((n + c))
         done <<<"$sets"
         if [[ "$k" -eq 0 || "$n" -eq 0 ]]; then
@@ -205,7 +238,7 @@ if want sca; then
     # for every supported platform/Python (installs refuse source builds).
     if ! have uv && [[ ! -x "$HOME/.local/bin/uv" ]]; then
         skip_missing sca uv "pipx install uv"
-    elif python3 installers/lib/lock_requirements.py --check >"$OUT/lock-check.log" 2>&1; then
+    elif "$PY" installers/lib/lock_requirements.py --check >"$OUT/lock-check.log" 2>&1; then
         record sca PASS "locks: $(grep -c '^OK:' "$OUT/lock-check.log") verified (hashes match the index, wheels for every target)"
         _say "  PASS: $(grep '^OK:' "$OUT/lock-check.log" | tr '\n' ' ')"
     else
@@ -222,7 +255,7 @@ if want sast; then
     _head "SAST - semgrep + bandit"
     # Every accepted finding is counted, explained and dated; one past its
     # re-check date fails the run until it is re-argued (see suppressions.py).
-    if python3 installers/lib/suppressions.py dates >"$OUT/suppressions.txt" 2>&1; then
+    if "$PY" installers/lib/suppressions.py dates >"$OUT/suppressions.txt" 2>&1; then
         record sast PASS "$(tail -1 "$OUT/suppressions.txt" | sed 's/^OK: //')"
         _say "  PASS: $(tail -1 "$OUT/suppressions.txt")"
     else
@@ -242,7 +275,7 @@ if want sast; then
                 --config installers/lib/semgrep-rules/ \
                 --json -o "$OUT/semgrep.json" \
                 --metrics=off --quiet . >"$OUT/semgrep.log" 2>&1
-        n="$(python3 installers/lib/suppressions.py apply semgrep "$OUT/semgrep.json" \
+        n="$("$PY" installers/lib/suppressions.py apply semgrep "$OUT/semgrep.json" \
                 2>"$OUT/semgrep-live.txt" || echo '?')"
         if [[ "$n" == "0" ]]; then
             record sast PASS "semgrep clean (after suppressions)"
@@ -259,7 +292,7 @@ if want sast; then
     else
         bandit -q -r Templates/Scripts installers -ll -f json \
                -o "$OUT/bandit.json" >"$OUT/bandit.log" 2>&1
-        n="$(python3 installers/lib/suppressions.py apply bandit "$OUT/bandit.json" \
+        n="$("$PY" installers/lib/suppressions.py apply bandit "$OUT/bandit.json" \
                 2>"$OUT/bandit-live.txt" || echo '?')"
         if [[ "$n" == "0" ]]; then
             record sast PASS "bandit clean (after suppressions)"
@@ -350,7 +383,7 @@ fi
 if want hooks; then
     expect hooks
     _head "Hooks - installed copies match installers/lib/hooks"
-    python3 installers/lib/check_hooks_fresh.py --repo-root . >"$OUT/hooks.log" 2>&1
+    "$PY" installers/lib/check_hooks_fresh.py --repo-root . >"$OUT/hooks.log" 2>&1
     rc=$?
     if [[ $rc -eq 0 ]]; then
         record hooks PASS "$(tail -1 "$OUT/hooks.log")"
@@ -370,7 +403,7 @@ fi
 if want content; then
     expect content
     _head "Content - classification audit + identity gate"
-    if python3 installers/lib/check_classification.py --repo-root . \
+    if "$PY" installers/lib/check_classification.py --repo-root . \
             >"$OUT/classification-audit.log" 2>&1; then
         record content PASS "classification audit: $(tail -1 "$OUT/classification-audit.log" | sed 's/^classification audit: //')"
     else
@@ -380,7 +413,7 @@ if want content; then
     scope="names and addresses"
     [[ -f installers/lib/identity-denylist.local ]] || \
         scope="addresses only - no local deny-list (run check_identity_leak.py --init)"
-    if python3 installers/lib/check_identity_leak.py --worktree --quiet \
+    if "$PY" installers/lib/check_identity_leak.py --worktree --quiet \
             >"$OUT/identity-gate.log" 2>&1; then
         record content PASS "identity gate ($scope): tracked and untracked files clean"
     else
@@ -427,14 +460,14 @@ if want dast; then
     if [[ -f installers/plugin-pins.json ]]; then
         TMP="$(mktemp -d)"
         cp installers/plugin-pins.json "$TMP/pins.json"
-        python3 - "$TMP/pins.json" <<'PY'
+        "$PY" - "$TMP/pins.json" <<'PY'
 import json, sys
 p = sys.argv[1]
 pins = json.load(open(p))
 pins[0]["files"][sorted(pins[0]["files"])[0]]["sha256"] = "0" * 64
 json.dump(pins, open(p, "w"))
 PY
-        if python3 - "$TMP/pins.json" installers/plugin-pins.json <<'PY'
+        if "$PY" - "$TMP/pins.json" installers/plugin-pins.json <<'PY'
 import json, sys
 bad = json.load(open(sys.argv[1]))
 good = json.load(open(sys.argv[2]))
@@ -461,20 +494,44 @@ PY
         cp Templates/Scripts/security_common.py "$TMP/scripts/" 2>/dev/null
         printf 'print("x")\n' > "$TMP/scripts/canary.py"
         # OBSIDIAN_SECURITY_STATE_DIR keeps this entirely out of live state.
+        #
+        # PASS needs all three: the baseline was recorded, the perturbed run
+        # exited 1 (drift, not 2 = error), and its JSON says drift on the
+        # canary. Until 2026-10-11 any non-zero exit counted, and a baseline
+        # that failed silently -- no /usr/bin/python3 on Windows -- made every
+        # later run exit non-zero, so the check passed without running.
         env OBSIDIAN_SECURITY_STATE_DIR="$TMP/state" \
-            /usr/bin/python3 Templates/Scripts/integrity_monitor.py \
-            --scripts-dir "$TMP/scripts" --update >/dev/null 2>&1
+            "$CONTROL_PY" Templates/Scripts/integrity_monitor.py \
+            --scripts-dir "$TMP/scripts" --update >"$OUT/dast-integrity-baseline.log" 2>&1
+        base_rc=$?
         printf 'print("tampered")\n' > "$TMP/scripts/canary.py"
-        if env OBSIDIAN_SECURITY_STATE_DIR="$TMP/state" \
-               /usr/bin/python3 Templates/Scripts/integrity_monitor.py \
-               --scripts-dir "$TMP/scripts" >/dev/null 2>&1; then
-            record dast FAIL "integrity monitor did NOT flag a perturbed file"
-            _say "  FAIL: integrity monitor stayed quiet on a modified file."
-            dlog "integrity: FAIL - no drift reported after perturbation"
-        else
+        env OBSIDIAN_SECURITY_STATE_DIR="$TMP/state" \
+            "$CONTROL_PY" Templates/Scripts/integrity_monitor.py \
+            --scripts-dir "$TMP/scripts" --json >"$OUT/dast-integrity-drift.json" 2>"$OUT/dast-integrity-drift.err"
+        drift_rc=$?
+        drift_ok=0
+        "$PY" - "$OUT/dast-integrity-drift.json" <<'PYJSON' && drift_ok=1
+import json, sys
+try:
+    d = json.load(open(sys.argv[1], encoding="utf-8"))
+except (OSError, ValueError):
+    sys.exit(1)
+hit = any(f.get("kind") == "CONTENT_CHANGE" and "canary.py" in str(f.get("path", ""))
+          for f in d.get("findings", []) if isinstance(f, dict))
+sys.exit(0 if d.get("status") == "drift" and hit else 1)
+PYJSON
+        if [[ $base_rc -ne 0 ]]; then
+            record dast FAIL "integrity check could not record its sandbox baseline (exit $base_rc)"
+            _say "  FAIL: the sandbox baseline failed (exit $base_rc); see dast-integrity-baseline.log."
+            dlog "integrity: FAIL - baseline exit $base_rc"
+        elif [[ $drift_rc -eq 1 && $drift_ok -eq 1 ]]; then
             record dast PASS "integrity monitor fails closed on drift"
-            _say "  PASS: integrity monitor reported drift on a perturbed file."
-            dlog "integrity: PASS - drift reported, live state untouched"
+            _say "  PASS: integrity monitor reported drift on the perturbed canary."
+            dlog "integrity: PASS - CONTENT_CHANGE on canary.py, live state untouched"
+        else
+            record dast FAIL "integrity monitor did NOT report the perturbed file as drift (exit $drift_rc)"
+            _say "  FAIL: no drift finding for the modified canary (exit $drift_rc); see dast-integrity-drift.json."
+            dlog "integrity: FAIL - exit $drift_rc, drift finding present=$drift_ok"
         fi
         rm -rf "$TMP"
     fi

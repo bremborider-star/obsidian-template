@@ -42,13 +42,12 @@ fi
 
 # ---- 3. Open WebUI ---------------------------------------------------------
 info "Open WebUI container..."
-if docker ps --format '{{.Names}}' | grep -q '^open-webui$'; then
-    ok "  open-webui container already running"
-else
-    info "  pulling and starting open-webui..."
-    # 127.0.0.1 binding is load-bearing: this UI can hold the entire vault
-    # as a RAG collection, and a bare -p 3000:8080 publishes it to every
-    # device on the LAN (Docker bypasses the macOS application firewall).
+# 127.0.0.1 binding is load-bearing: this UI can hold the entire vault as a
+# RAG collection, and a bare -p 3000:8080 publishes it to every device on the
+# LAN (Docker bypasses the macOS application firewall). An existing container
+# keeps whatever binding it was created with, so it is checked, not trusted,
+# and recreated on the same volume if it is published anywhere else.
+start_open_webui() {
     docker run -d --restart=always \
         -p 127.0.0.1:3000:8080 \
         -v open-webui:/app/backend/data \
@@ -56,6 +55,23 @@ else
         -e 'OLLAMA_BASE_URL=http://host.docker.internal:11434' \
         --name open-webui \
         ghcr.io/open-webui/open-webui:main
+}
+if docker ps -a --format '{{.Names}}' | grep -q '^open-webui$'; then
+    if ! docker ps --format '{{.Names}}' | grep -q '^open-webui$'; then
+        docker start open-webui >/dev/null && sleep 2
+    fi
+    exposed="$(docker port open-webui 8080 2>/dev/null | grep -v '^127\.0\.0\.1:' || true)"
+    if [[ -n "$exposed" ]]; then
+        warn "  open-webui is published beyond this Mac ($(echo "$exposed" | tr '\n' ' ')); recreating it on the same volume, bound to 127.0.0.1"
+        docker rm -f open-webui >/dev/null
+        start_open_webui
+        ok "  open-webui recreated; your account and knowledge are kept"
+    else
+        ok "  open-webui container running, bound to 127.0.0.1"
+    fi
+else
+    info "  pulling and starting open-webui..."
+    start_open_webui
     ok "  open-webui container started; web UI at http://localhost:3000"
 fi
 

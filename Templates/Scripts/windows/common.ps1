@@ -355,6 +355,53 @@ function Invoke-Native {
     }
 }
 
+# Open WebUI can hold the whole vault as a RAG collection, and a bare
+# `-p 3000:8080` publishes it on every interface -- with signup open on a fresh
+# volume, the first visitor from the LAN becomes its admin. Until 2026-10-11
+# setup-rag.ps1 did exactly that, and an existing container keeps its binding
+# until it is recreated, so this checks and repairs rather than trusting the
+# run command. The volume is kept: recreating loses no account or knowledge.
+$script:OpenWebUIImage = 'ghcr.io/open-webui/open-webui:main'
+
+function Start-OpenWebUIContainer {
+    Invoke-Native -ErrorMessage 'docker run failed' {
+        docker run -d --restart=always `
+            -p 127.0.0.1:3000:8080 `
+            -v open-webui:/app/backend/data `
+            --add-host=host.docker.internal:host-gateway `
+            -e 'OLLAMA_BASE_URL=http://host.docker.internal:11434' `
+            --name open-webui `
+            $script:OpenWebUIImage
+    }
+}
+
+# The host addresses open-webui's port 8080 is published on ("0.0.0.0:3000",
+# "[::]:3000", "127.0.0.1:3000"), from `docker port`. Empty when stopped.
+function Get-OpenWebUIBindings {
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { $out = @(docker port open-webui 8080 2>$null) } finally { $ErrorActionPreference = $prevEAP }
+    return @($out | ForEach-Object { "$_".Trim() } | Where-Object { $_ })
+}
+
+# Start the existing container if needed; recreate it on loopback if it is
+# published anywhere else. Returns $true when a repair was made.
+function Repair-OpenWebUIBinding {
+    $bindings = @(Get-OpenWebUIBindings)
+    if ($bindings.Count -eq 0) {
+        Invoke-Native -Warn -ErrorMessage 'docker start failed' { docker start open-webui *> $null }
+        Start-Sleep -Seconds 2
+        $bindings = @(Get-OpenWebUIBindings)
+    }
+    $exposed = @($bindings | Where-Object { $_ -notmatch '^127\.0\.0\.1:' })
+    if ($exposed.Count -eq 0) { return $false }
+    Write-Warning ("  open-webui is published beyond this machine ({0}); recreating it on the same" -f ($exposed -join ', '))
+    Write-Warning '  volume, bound to 127.0.0.1 only. Your account and knowledge are kept.'
+    Invoke-Native -ErrorMessage 'docker rm failed' { docker rm -f open-webui 1>$null }
+    Start-OpenWebUIContainer
+    return $true
+}
+
 # True if the WSL2 platform is already present, even with zero distros
 # installed -- Docker Desktop only needs its own lightweight utility VMs on
 # top of that, no `wsl --install` / reboot required in that case.

@@ -144,6 +144,19 @@ if (Test-Path -LiteralPath $DashboardSchemeKey) {
     Register-DashboardActions -ScriptsDir $scriptsDir
 }
 
+# An Open WebUI container created before 2026-10-11 by setup-rag.ps1 is
+# published on every interface. Only touched when one exists and Docker is up.
+if (Get-Command docker -ErrorAction SilentlyContinue) {
+    $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+    try { $owui = (docker ps -a --filter 'name=^open-webui$' --format '{{.Names}}' 2>$null) }
+    finally { $ErrorActionPreference = $prevEAP }
+    if ($owui -eq 'open-webui') {
+        Write-Host '== open-webui binding =='
+        if (Repair-OpenWebUIBinding) { Write-Host '  Recreated, bound to 127.0.0.1:3000.' }
+        else { Write-Host '  Bound to 127.0.0.1 only.' }
+    }
+}
+
 $to = (Invoke-Native -ErrorMessage 'git rev-parse failed' { git -C $vault rev-parse --short HEAD }).Trim()
 
 # Report only. Adopting a new baseline is a decision for the person reading

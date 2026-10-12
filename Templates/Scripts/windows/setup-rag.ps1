@@ -153,27 +153,23 @@ if ($ResetWebUI) {
 
 $existing = (docker ps -a --filter 'name=^open-webui$' --format '{{.Names}}' 2>$null)
 if ($existing -eq 'open-webui') {
-    Invoke-Native -Warn -ErrorMessage 'docker start failed' { docker start open-webui *> $null }
-    Write-Host '  open-webui container present; started (if it was stopped)'
+    if (Repair-OpenWebUIBinding) {
+        Write-Host '  open-webui recreated, bound to 127.0.0.1:3000'
+    } else {
+        Write-Host '  open-webui container present and bound to 127.0.0.1; started (if it was stopped)'
+    }
 } else {
     Write-Host '  pulling and starting the official open-webui image...'
-    Invoke-Native -ErrorMessage 'docker run failed' {
-        docker run -d --restart=always `
-            -p 3000:8080 `
-            -v open-webui:/app/backend/data `
-            --add-host=host.docker.internal:host-gateway `
-            -e 'OLLAMA_BASE_URL=http://host.docker.internal:11434' `
-            --name open-webui `
-            ghcr.io/open-webui/open-webui:main
-    }
-    Write-Host '  open-webui started; web UI at http://localhost:3000'
+    Start-OpenWebUIContainer
+    Write-Host '  open-webui started; web UI at http://localhost:3000 (this machine only)'
 }
 
 # Check whether this landed on a fresh volume or an existing admin account --
 # don't make the user discover this the hard way via a plain "Sign in" screen.
 Write-Host '  waiting for Open WebUI to respond...'
 $cfg = $null
-for ($i = 0; $i -lt 20 -and -not $cfg; $i++) {
+# A first start migrates the database and takes about a minute.
+for ($i = 0; $i -lt 120 -and -not $cfg; $i++) {
     Start-Sleep -Milliseconds 750
     try { $cfg = Invoke-RestMethod -Uri 'http://localhost:3000/api/config' -TimeoutSec 2 -ErrorAction Stop }
     catch { }

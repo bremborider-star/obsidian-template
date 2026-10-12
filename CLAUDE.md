@@ -41,7 +41,11 @@ exists to check the tree carries only public content — respect it.
 ## The content folders are empty on purpose — demo data is generated
 
 Every content folder (`People/`, `Meetings/`, `Knowledge/`, …) ships holding
-nothing but a `.gitkeep`. **Never commit content into them.** The `.gitkeep`
+nothing but a `.gitkeep`. **Never commit content into them.** All thirteen are
+gitignored (`dir/**`, with the `.gitkeep` files and the few shipped files
+re-included by name), because a user's real notes live in this same working
+tree; `test_platform_hardening.py` fails if a new content folder is missing
+its lines. The `.gitkeep`
 files are what preserve the vault structure through a demo teardown; leave them.
 
 A synthetic dataset is written on demand by

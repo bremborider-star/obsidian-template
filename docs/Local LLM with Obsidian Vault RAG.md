@@ -68,7 +68,7 @@ docker run -d \
 
 Notes:
 
-- `-p 127.0.0.1:3000:8080` binds to localhost only. Do not drop the `127.0.0.1:` prefix — without it, Docker exposes the port on every interface.
+- `-p 127.0.0.1:3000:8080` binds to localhost only. Do not drop the `127.0.0.1:` prefix — without it, Docker exposes the port on every interface. A container keeps the binding it was created with, so the installers check an existing one (`docker port open-webui 8080`) rather than trust it, and recreate it on the same volume if it is published anywhere else. On Windows, `update.ps1` makes the same check; a container `setup-rag.ps1` created before 2026-10-11 was published on every interface.
 - The first time you visit `http://localhost:3000` you'll be prompted to create an admin account. Create the admin first, then go to **Admin Panel → Settings → General** and set `Enable New Sign Ups` to OFF and `Default User Role` to `pending`. Do **not** set `ENABLE_SIGNUP=false` as a startup environment variable — it blocks all signups including the very first admin signup.
 - Keep Open WebUI **localhost-only**. There is no supported remote-access path for the vault-RAG UI: do not open port 3000 to the LAN, and do not expose it over a mesh VPN such as Tailscale — the supply-chain surface of a third-party mesh isn't worth it for a personal index. To use the UI from another device, drive the host over its built-in **Screen Sharing** rather than exposing the port.
 
