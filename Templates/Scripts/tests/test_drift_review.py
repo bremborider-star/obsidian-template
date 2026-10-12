@@ -132,7 +132,7 @@ def test_a_range_that_is_not_two_commit_names_is_refused(dr, repo, spec):
         dr.resolve_range(spec)
 
 
-def test_reports_are_refused_inside_the_repository(dr, tmp_path, monkeypatch):
+def test_reports_are_refused_inside_the_repository(dr, tmp_path, monkeypatch, allow_subprocess):
     monkeypatch.setattr(dr, "REPO_ROOT", tmp_path)
     cfg = tmp_path / "c.json"
     cfg.write_text(json.dumps({"report_dir": str(tmp_path / "reports")}), encoding="utf-8")

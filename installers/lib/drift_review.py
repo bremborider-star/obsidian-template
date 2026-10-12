@@ -215,6 +215,26 @@ def _inside(path: Path, root: Path) -> bool:
         return False
 
 
+def _repo_roots() -> list[Path]:
+    """This checkout, and the main checkout when this one is a worktree.
+
+    A worktree under .claude/worktrees/ sits inside the main checkout, so a
+    path outside the worktree can still be inside the public repository."""
+    roots = [REPO_ROOT]
+    try:
+        common = subprocess.run(["git", "-C", str(REPO_ROOT), "rev-parse", "--git-common-dir"],
+                                capture_output=True, text=True, timeout=10, check=True).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return roots
+    if common:
+        roots.append((REPO_ROOT / common).resolve().parent)
+    return roots
+
+
+def _inside_repo(path: Path) -> bool:
+    return any(_inside(path, r) for r in _repo_roots())
+
+
 def load_config(path: Path) -> dict:
     """The validated config, or ReviewError naming what is wrong."""
     try:
@@ -237,11 +257,11 @@ def load_config(path: Path) -> dict:
     report_dir = _expand(raw["report_dir"]) if raw.get("report_dir") else default_state_dir() / "reports"
     # Reports name paths and quote the documents: never into the repository,
     # which is public and is also a vault every user opens.
-    if _inside(report_dir, REPO_ROOT):
+    if _inside_repo(report_dir):
         raise ReviewError("report_dir %s is inside the repository; put it outside" % report_dir)
 
     task_note = _expand(raw["task_note"]) if raw.get("task_note") else None
-    if task_note is not None and (task_note.suffix != ".md" or _inside(task_note, REPO_ROOT)):
+    if task_note is not None and (task_note.suffix != ".md" or _inside_repo(task_note)):
         raise ReviewError("task_note must be a .md file outside the repository")
 
     model = raw.get("model")

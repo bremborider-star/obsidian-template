@@ -45,6 +45,7 @@
 #   installers/lib/security-checks.sh --changed
 #   installers/lib/security-checks.sh --dast
 #   installers/lib/security-checks.sh --artifacts DIR # override output location
+#   installers/lib/security-checks.sh --print-artifact-root  # where it would write
 #
 set -uo pipefail
 
@@ -59,7 +60,22 @@ MODE="full"
 # outside the repo for everyone and inside no cloud-synced folder: the previous
 # default sat under ~/Documents, which macOS syncs to iCloud. For the maintainer
 # the sibling is the local-only security repo that holds the packet program.
-ARTIFACT_ROOT="${SECURITY_ARTIFACTS_DIR:-$(dirname "$REPO_ROOT")/obsidian-security/verification-artifacts}"
+#
+# "Sibling" means sibling of the MAIN checkout, not of REPO_ROOT. Run from a git
+# worktree (.claude/worktrees/<name>), REPO_ROOT is the worktree, and its parent
+# is .claude/worktrees/ - inside the public checkout. The common git dir is
+# shared by every worktree, so its parent is the main checkout wherever this
+# runs. No git, or not a repository (an unpacked tarball): REPO_ROOT stands.
+main_checkout() {
+    local common
+    common="$(cd "$REPO_ROOT" && git rev-parse --git-common-dir 2>/dev/null)" || common=""
+    if [[ -n "$common" ]] && common="$(cd "$REPO_ROOT" && cd "$common" 2>/dev/null && pwd)"; then
+        dirname "$common"
+    else
+        printf '%s\n' "$REPO_ROOT"
+    fi
+}
+ARTIFACT_ROOT="${SECURITY_ARTIFACTS_DIR:-$(dirname "$(main_checkout)")/obsidian-security/verification-artifacts}"
 SUPPRESSIONS="$REPO_ROOT/installers/lib/security-suppressions.txt"
 
 while [[ $# -gt 0 ]]; do
@@ -69,11 +85,15 @@ while [[ $# -gt 0 ]]; do
         --fast)      MODE="fast" ;;
         --dast)      MODE="dast" ;;
         --artifacts) shift; ARTIFACT_ROOT="${1:?--artifacts needs a path}" ;;
+        --print-artifact-root) PRINT_ROOT=1 ;;
         -h|--help)   sed -n '2,/^set -uo/{ /^set -uo/d; s/^# \{0,1\}//; p; }' "$0"; exit 0 ;;
         *) echo "unknown option: $1" >&2; exit 2 ;;
     esac
     shift
 done
+
+# Where a run would write, without running anything (the tests use it).
+if [[ "${PRINT_ROOT:-0}" == 1 ]]; then printf '%s\n' "$ARTIFACT_ROOT"; exit 0; fi
 
 STAMP="$(date +%Y%m%d-%H%M%S)"
 OUT="$ARTIFACT_ROOT/checks-$STAMP"
