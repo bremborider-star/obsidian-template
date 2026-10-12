@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Backfill Email-Work / Email-Personal frontmatter into People notes.
 
-Scans ~/Obsidian/People/*.md. For files where both Email-Work and Email-Personal
-are empty/missing in frontmatter, looks in the body for plausible email
+Scans ~/Obsidian/People/*.md. For files where Email-Work, Email-Work-2 and
+Email-Personal are all empty/missing in frontmatter, looks in the body for plausible email
 addresses and writes the best one to frontmatter.
 
 Dry-run by default — print what would change. Pass --apply to actually write.
@@ -39,6 +39,13 @@ PERSONAL_DOMAINS = {
 
 EMAIL_RE = re.compile(r'\b[\w.+-]+@[\w-]+\.[\w.-]+\b')
 LINE_KEY_RE = re.compile(r'^(Email-Work|Email-Personal)\s*:\s*(.*)$')
+# Every field that holds an address. Email-Work-2 (a second work address) is
+# never a backfill target, but a note that has one is not empty.
+ANY_EMAIL_RE = re.compile(r'^(?:Email-Work|Email-Work-2|Email-Personal)[ \t]*:[ \t]*(\S.*)$')
+
+
+def has_any_email(fm_lines: list[str]) -> bool:
+    return any(ANY_EMAIL_RE.match(line) for line in fm_lines)
 
 
 def split_frontmatter(text: str) -> tuple[list[str], list[str]]:
@@ -202,7 +209,7 @@ def main() -> int:
 
         work_val, pers_val, work_idx, pers_idx = parse_fm_emails(fm_lines)
 
-        if (work_val and work_val.strip()) or (pers_val and pers_val.strip()):
+        if has_any_email(fm_lines):
             counts['already-populated'] += 1
             if args.verbose:
                 print(f'  SKIP (already has email): {p.name}')

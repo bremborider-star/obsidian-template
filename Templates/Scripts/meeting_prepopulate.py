@@ -668,6 +668,15 @@ def strip_location_credentials(location_display: str | None,
 # People index and dedup (Pre-Pop Spec §8.1)
 # ============================================================
 
+# Every People frontmatter field that holds an address, in match order.
+# Email-Work-2 is a second work address (a university and a health-system
+# one, say). It is matched on everywhere the other two are, but organic
+# backfill never writes it: see organic_email_backfill.
+PEOPLE_EMAIL_FIELDS = ('Email-Work', 'Email-Work-2', 'Email-Personal')
+# The fields organic backfill may fill when empty.
+BACKFILL_EMAIL_FIELDS = ('Email-Work', 'Email-Personal')
+
+
 def _fm_field_re(key: str) -> re.Pattern:
     """`key: value` on one frontmatter line. [ \\t]*, not \\s*: \\s matches a
     newline, so an empty `Email-Work:` used to capture the NEXT line
@@ -712,14 +721,14 @@ class PeopleIndex:
             fm = '\n'.join(fm_lines)
 
             empties: set[str] = set()
-            for key in ('Email-Work', 'Email-Personal'):
+            for key in PEOPLE_EMAIL_FIELDS:
                 m = _fm_field_re(key).search(fm)
                 if not m:
                     continue
                 val = m.group(1).strip()
                 if val:
                     self.email_to_stem[val.lower()] = stem
-                else:
+                elif key in BACKFILL_EMAIL_FIELDS:
                     empties.add(key)
             if empties:
                 self.stem_to_emptyfields[stem] = empties
@@ -1080,7 +1089,7 @@ def organic_email_backfill(stem: str, email: str, dry_run: bool,
     if not email:
         return False
     note_domains = set()
-    for key in ('Email-Work', 'Email-Personal'):
+    for key in PEOPLE_EMAIL_FIELDS:
         m = _fm_field_re(key).search(text, 0, fm_end)
         if m and _email_domain(m.group(1)):
             note_domains.add(_email_domain(m.group(1)))
@@ -1132,6 +1141,7 @@ Title: {_yaml_scalar(title)}
 Organization: {_yaml_scalar(org)}
 Email-Personal: {_yaml_email(pers_email)}
 Email-Work: {_yaml_email(work_email)}
+Email-Work-2:
 Mobile Phone: {_yaml_scalar(phone)}
 preferred_name:
 aliases:

@@ -252,6 +252,7 @@ Title:
 Organization:
 Email-Personal:
 Email-Work:
+Email-Work-2:
 Mobile Phone:
 preferred_name:
 aliases: []
@@ -275,6 +276,8 @@ tags: []
 
 ![[Meetings.base#Person]]
 ```
+
+The three email fields are what the meeting pipeline matches invite attendees on. `Email-Work-2` holds a second work address for someone who has two (a university and a health-system address, say); it is matched exactly like `Email-Work`, but only ever filled by hand, since the pipeline's automatic email backfill writes only `Email-Work` and `Email-Personal`.
 
 The `## Photo` section is where a photo embed is placed (e.g., `![[Smith-John.png]]`). The `## Meetings` section embeds the Person view from Meetings.base, which dynamically shows all meetings where this person appears in the people property.
 
