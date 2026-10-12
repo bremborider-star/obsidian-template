@@ -69,3 +69,34 @@ def test_the_uninstaller_removes_every_log_a_shipped_agent_writes() -> None:
             if "/Library/Logs/" in path:
                 written.add(Path(path).stem)
     assert written <= listed, sorted(written - listed)
+
+
+# A docs/ path at the start of a reference (not Knowledge/docs/ or a bare
+# "docs/" in prose): docs/<name>.md, names may hold spaces and parentheses.
+_DOC_REF = re.compile(r"(?<![\w/.])docs/([A-Za-z0-9][^\"'`<>\n\]|]*?\.md)")
+
+
+def doc_references(text: str) -> list[str]:
+    return [m.group(1) for m in _DOC_REF.finditer(text)]
+
+
+def test_the_doc_reference_scanner_finds_what_it_must() -> None:
+    sample = ('see docs/Voice Notes (Optional).md and "docs/Windows Setup.md",\n'
+              "# a Knowledge/docs/x.md note, a docs/ or a README.md mention\n")
+    assert doc_references(sample) == ["Voice Notes (Optional).md", "Windows Setup.md"]
+
+
+def test_every_docs_path_a_script_names_exists() -> None:
+    """2026-10-12: voice_cleanup.py pointed setup at docs/Voice Note to
+    Obsidian Guide.md, which had not existed for months."""
+    scripts = REPO / "Templates" / "Scripts"
+    sources = sorted([*scripts.glob("*.py"), *scripts.glob("*.ps1"),
+                      *(scripts / "windows").glob("*.py"),
+                      *(scripts / "windows").glob("*.ps1")])
+    assert len(sources) > 20, "scanned too few scripts to mean anything"
+    missing = []
+    for src in sources:
+        for ref in doc_references(src.read_text(encoding="utf-8", errors="replace")):
+            if not (REPO / "docs" / ref).is_file():
+                missing.append(f"{src.relative_to(REPO).as_posix()}: docs/{ref}")
+    assert not missing, missing
