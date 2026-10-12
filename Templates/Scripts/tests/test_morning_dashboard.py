@@ -1001,3 +1001,50 @@ def test_a_stale_runs_trailing_cli_output_is_left_with_it(tmp_path):
                    "2026-10-12 05:40:46 meeting_pull: the API host is not reachable yet\n",
                    encoding="utf-8")
     assert md.cli_auth_defect(str(log)) is None
+
+
+# ---------------------------------------------------------------------------
+# Weekly Windows triggers are judged by their own days (2026-10-11)
+# ---------------------------------------------------------------------------
+
+MON_FRI = 2 | 4 | 8 | 16 | 32          # Task Scheduler DaysOfWeek bitmask
+
+
+def test_the_days_of_week_bitmask_maps_to_python_weekdays():
+    assert md._win_weekdays(MON_FRI) == {0, 1, 2, 3, 4}
+    assert md._win_weekdays(1) == {6}           # Sunday
+    assert md._win_weekdays(None) is None
+
+
+def test_a_weekday_task_is_not_stale_over_the_weekend(monkeypatch):
+    """A Mon-Fri task that ran Friday 05:00 read stale all weekend: weekly
+    triggers got the daily window."""
+    monkeypatch.setattr(md.sys, "platform", "win32")
+    friday = _dt.datetime(2026, 10, 9, 5, 0, 0)
+    monday_early = _dt.datetime(2026, 10, 12, 4, 0, 0)
+    monkeypatch.setattr(md, "now_local", lambda: monday_early.astimezone())
+    task = {"name": "meeting-pull", "state": "Ready", "lastRun": friday.isoformat(),
+            "lastResult": 0, "repetition": None,
+            "triggerType": "MSFT_TaskWeeklyTrigger", "daysOfWeek": MON_FRI}
+    _fake_task_scheduler(monkeypatch, [task])
+    [row] = md._collect_pipeline_health_windows()
+    assert row["status"] == "pass", row["problems"]
+    assert row["trigger"] == "weekdays"
+
+
+def test_a_weekday_task_silent_since_last_week_is_still_stale(monkeypatch):
+    monkeypatch.setattr(md.sys, "platform", "win32")
+    last_wed = _dt.datetime(2026, 10, 7, 5, 0, 0)
+    monday_noon = _dt.datetime(2026, 10, 12, 12, 0, 0)
+    monkeypatch.setattr(md, "now_local", lambda: monday_noon.astimezone())
+    task = {"name": "meeting-pull", "state": "Ready", "lastRun": last_wed.isoformat(),
+            "lastResult": 0, "repetition": None,
+            "triggerType": "MSFT_TaskWeeklyTrigger", "daysOfWeek": MON_FRI}
+    _fake_task_scheduler(monkeypatch, [task])
+    [row] = md._collect_pipeline_health_windows()
+    assert row["status"] == "stale"
+
+
+def test_the_task_query_asks_for_the_trigger_days():
+    import inspect
+    assert "daysOfWeek=$dow" in inspect.getsource(md._query_windows_tasks)

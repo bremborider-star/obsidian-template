@@ -1362,13 +1362,29 @@ _WIN_TASK_NOT_RUN = 267011   # 0x00041303 SCHED_S_TASK_HAS_NOT_RUN
 _WIN_TASK_RUNNING = 267009   # 0x00041301 SCHED_S_TASK_RUNNING
 
 
+def _win_weekdays(days_of_week) -> set[int] | None:
+    """Python weekdays (Mon=0 .. Sun=6) from a weekly trigger's DaysOfWeek
+    bitmask (Sunday=1, Monday=2, ... Saturday=64), or None if absent."""
+    try:
+        mask = int(days_of_week)
+    except (TypeError, ValueError):
+        return None
+    days = {(bit - 1) % 7 for bit in range(7) if mask & (1 << bit)}
+    return days or None
+
+
 def _win_cadence(repetition: str | None,
-                 trigger_type: str | None) -> tuple[str, float | None]:
+                 trigger_type: str | None,
+                 days_of_week=None,
+                 last_run: _dt.datetime | None = None,
+                 now: _dt.datetime | None = None) -> tuple[str, float | None]:
     """(trigger_label, max_age_hours) from a Task Scheduler trigger.
 
     `repetition` is an ISO-8601 duration (PT30M, PT5M, PT1H) for repeating
     triggers; `trigger_type` is the CIM class name (…DailyTrigger/…WeeklyTrigger).
-    Mirrors _cadence(): the staleness window is 6x the cadence."""
+    Mirrors _cadence(): the staleness window is 6x the cadence, and a weekly
+    trigger's window is widened by the gap to its next scheduled day. Without
+    that, a Mon-Fri task read stale every weekend (Windows, 2026-10-11)."""
     if repetition:
         m = re.match(r"P(?:T)?(?:(\d+)H)?(?:(\d+)M)?", repetition)
         if m and (m.group(1) or m.group(2)):
@@ -1379,7 +1395,13 @@ def _win_cadence(repetition: str | None,
                 return (label, window)
     tt = (trigger_type or "").lower()
     if "weekly" in tt:
-        return ("weekly", DAILY_STALE_HOURS)
+        sched = _win_weekdays(days_of_week)
+        if sched is None:
+            return ("weekly", DAILY_STALE_HOURS + 6 * 24.0)
+        anchor = last_run if last_run is not None else (now or now_local().replace(tzinfo=None))
+        slack = _next_scheduled_gap_hours(sched, anchor.weekday())
+        label = "weekdays" if sched == {0, 1, 2, 3, 4} else "scheduled days"
+        return (label, DAILY_STALE_HOURS + slack)
     if "daily" in tt:
         return ("daily", DAILY_STALE_HOURS)
     return ("scheduled", DAILY_STALE_HOURS)
@@ -1393,10 +1415,10 @@ def _query_windows_tasks() -> list[dict] | None:
         "$o=foreach($t in Get-ScheduledTask -TaskPath '\\Obsidian\\'){"
         "$i=$t|Get-ScheduledTaskInfo;$rep=$null;"
         "foreach($g in $t.Triggers){if($g.Repetition -and $g.Repetition.Interval){$rep=$g.Repetition.Interval;break}}"
-        "$tt=$null;if($t.Triggers){$tt=$t.Triggers[0].CimClass.CimClassName};"
+        "$tt=$null;$dow=$null;if($t.Triggers){$tt=$t.Triggers[0].CimClass.CimClassName;$dow=$t.Triggers[0].DaysOfWeek};"
         "[pscustomobject]@{name=$t.TaskName;state=\"$($t.State)\";"
         "lastRun=if($i.LastRunTime){$i.LastRunTime.ToString('s')}else{$null};"
-        "lastResult=$i.LastTaskResult;repetition=$rep;triggerType=$tt}};"
+        "lastResult=$i.LastTaskResult;repetition=$rep;triggerType=$tt;daysOfWeek=$dow}};"
         "$o|ConvertTo-Json -Depth 4 -Compress"
     )
     try:
@@ -1465,7 +1487,6 @@ def _collect_pipeline_health_windows() -> list[dict]:
                 })
             continue
 
-        trigger, max_age = _win_cadence(t.get("repetition"), t.get("triggerType"))
         result = t.get("lastResult")
 
         last_run = None
@@ -1480,6 +1501,8 @@ def _collect_pipeline_health_windows() -> list[dict]:
                 last_run = None
         age_hours = ((now_naive - last_run).total_seconds() / 3600.0
                      if last_run else None)
+        trigger, max_age = _win_cadence(t.get("repetition"), t.get("triggerType"),
+                                        t.get("daysOfWeek"), last_run, now_naive)
 
         fallback = name.replace("-", " ").strip().capitalize()
         running = _win_running(t)
