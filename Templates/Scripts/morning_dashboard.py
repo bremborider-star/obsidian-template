@@ -1002,7 +1002,12 @@ def _recent_run_lines(lines: list[str], hours: int = RECENT_RUN_HOURS) -> list[s
         if newest is None:
             newest = ts
         elif (newest - ts).total_seconds() > hours * 3600:
-            return lines[i + 1:]
+            # Untimestamped lines right after the stale one are that stale
+            # run's CLI output; the recent part starts at the next stamp.
+            j = i + 1
+            while j < len(lines) and not _LOG_STAMP_RE.match(lines[j].strip()):
+                j += 1
+            return lines[j:]
     return lines
 
 

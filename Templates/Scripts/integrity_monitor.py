@@ -303,7 +303,8 @@ def scan_scheduled_tasks() -> dict[str, dict]:
             "sha256": hashlib.sha256(norm.encode("utf-8")).hexdigest(),
             "size": len(norm),
             # The pre-2026-10-12 normalisation, so a baseline taken before it
-            # still matches an unchanged task (see diff_dir).
+            # still matches a task that has not been re-registered since, and
+            # a finding against one can say so (see diff_dir).
             "sha256_v1": hashlib.sha256(v1.encode("utf-8")).hexdigest(),
         }
     return out
@@ -708,11 +709,19 @@ def diff_dir(label: str, current: dict, baseline: dict) -> list[dict]:
         if cur.get("sha256") != old.get("sha256") and cur.get("sha256_v1") != old.get("sha256"):
             if content_change_ignored(label, rel):
                 continue
-            findings.append({
+            finding = {
                 "kind": "CONTENT_CHANGE", "scope": label, "path": rel,
                 "old_sha": old.get("sha256"), "new_sha": cur.get("sha256"),
                 "old_size": old.get("size"), "new_size": cur.get("size"),
-            })
+            }
+            # A task baselined before normalize_task_xml() and re-registered
+            # since cannot be told apart from a changed one: the old XML is
+            # not kept. Every update re-registers, so each such task shows
+            # once. Say so on the finding rather than pretend it is silent.
+            if "sha256_v1" in cur and "sha256_v1" not in old:
+                finding["note"] = ("baseline predates task normalisation (2026-10-12): "
+                                   "a re-registration alone also shows here, once")
+            findings.append(finding)
     for rel in baseline:
         if rel not in current:
             findings.append({"kind": "DELETED", "scope": label, "path": rel,

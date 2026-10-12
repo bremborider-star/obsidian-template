@@ -990,3 +990,14 @@ def test_an_expiry_in_the_latest_run_is_still_verified(tmp_path):
                    "2026-10-12 05:00:02 meeting_pull: producer exited 1 - no handoff written\n",
                    encoding="utf-8")
     assert md.cli_auth_defect(str(log)).startswith("Verified: the Claude CLI's stored session has expired")
+
+
+def test_a_stale_runs_trailing_cli_output_is_left_with_it(tmp_path):
+    """The drift review of 2ba851e: the stale run's untimestamped CLI line
+    after its last stamp was kept with the recent lines."""
+    log = tmp_path / "meeting-pull.log"
+    log.write_text("2026-09-04 08:00:01 meeting_pull: starting (attempt 1/3)\n"
+                   "Failed to authenticate: OAuth session expired and could not be refreshed\n"
+                   "2026-10-12 05:40:46 meeting_pull: the API host is not reachable yet\n",
+                   encoding="utf-8")
+    assert md.cli_auth_defect(str(log)) is None

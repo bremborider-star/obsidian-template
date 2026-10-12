@@ -57,8 +57,10 @@ for the full setup guide.
   BurntToast if installed, otherwise through the Windows notification API
   directly (no module needed). A toast that cannot be shown is logged.
 - `update.ps1` — brings an existing install up to date in one command: pull,
-  reinstall requirements, re-register tasks. See "Updating an existing
-  install" in `docs/Windows Setup.md`.
+  reinstall requirements, re-register tasks. It also recreates an Open WebUI
+  container that is published beyond this machine, on the same volume and
+  bound to 127.0.0.1. See "Updating an existing install" in
+  `docs/Windows Setup.md`.
 - `uninstall.ps1` — tears down what `install.ps1` set up; see
   `.\uninstall.ps1 -?` for flags.
 

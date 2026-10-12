@@ -89,7 +89,7 @@ Templates/Scripts/logs/
 # keeps the structure (Notes/Dashboards/ and the rest) through a clone and a
 # demo teardown. The few files that are meant to ship are re-included by
 # name; anything else needs a line here or `git add -f`. A new content
-# folder needs its three lines too: test_shipped_config_references checks.
+# folder needs its three lines too: test_platform_hardening.py checks.
 Actions/**
 !Actions/**/
 !Actions/**/.gitkeep

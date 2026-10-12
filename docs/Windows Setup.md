@@ -185,7 +185,8 @@ in a fixed order:
 
 Re-registering rewrites each task's registration time. The integrity
 monitor ignores that (and the trigger's start date), so an update on its own
-shows no task drift; a changed schedule, action or principal still does.
+shows no task drift once the baseline is from 2026-10-12 or later; a changed
+schedule, action or principal still does.
 Either security control without a baseline shows as **inactive** on the
 dashboard rather than as a failure: it is protecting nothing until you set
 one up.
@@ -232,8 +233,12 @@ The code and requirements are already updated. Re-run the update from
 PowerShell opened with **Run as administrator**.
 
 **An integrity drift alert after updating.** If this machine has an integrity
-baseline, an update is expected to show up as drift: it changes watched
-scripts and every task definition. The update never adopts a new baseline
+baseline, an update is expected to show up as drift for the watched scripts
+it changed. A task shows as drift only if its schedule, action or principal
+changed, with one exception: against a baseline recorded before 2026-10-12,
+every task shows once, on the first update after it, because the old record
+cannot tell a re-registration from a change. Those findings carry a note
+saying so. The update never adopts a new baseline
 itself. Its last lines print the commands that list the findings and the diff
 the update applied. Adopt the new state with `--update` only when every script
 finding is a file in that diff, every task finding is an `\Obsidian\` task,

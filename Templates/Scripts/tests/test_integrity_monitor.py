@@ -770,3 +770,20 @@ def test_a_baseline_from_before_the_normalisation_still_matches(monkeypatch) -> 
     baseline = {"vault-lint": {"sha256": hashlib.sha256(legacy.encode()).hexdigest(),
                                "size": len(legacy)}}
     assert im.diff_dir("launchagents", cur, baseline) == []
+
+
+def test_a_finding_against_a_pre_normalisation_baseline_says_so(monkeypatch) -> None:
+    """Every update re-registers the tasks, so a baseline from before the
+    normalisation shows each task once; the finding must say why (drift
+    review of b5f6e27), not read as a modified task."""
+    import hashlib, re as _re
+    old_xml = _task_xml(registered="2026-10-05T13:19:02")
+    legacy = _re.sub(r"<Date>.*?</Date>", "", old_xml)
+    baseline = {"vault-lint": {"sha256": hashlib.sha256(legacy.encode()).hexdigest(),
+                               "size": len(legacy)}}
+    cur = _scan(monkeypatch, _task_xml(registered="2026-10-11T14:13:13"))
+    [f] = im.diff_dir("launchagents", cur, baseline)
+    assert f["note"] == ("baseline predates task normalisation (2026-10-12): "
+                         "a re-registration alone also shows here, once")
+    # Against a current baseline the same re-registration is not a finding.
+    assert im.diff_dir("launchagents", cur, _scan(monkeypatch, old_xml)) == []
