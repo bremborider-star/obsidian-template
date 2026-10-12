@@ -227,9 +227,11 @@ permission prompt, so anything permission-shaped fails quietly.
      (`mcp_claude_ai_Microsoft_365`), is refused by the installers and by
      `meeting_pull.py --dry-run`: `config 'mcp_prefix' must look like
      mcp__<server>`.
-   - A well-formed but wrong prefix or tool name fails the run with `the
-     session has no tool named ... although its MCP servers are connected`,
-     followed by the MCP tools the session actually loaded.
+   - A well-formed but wrong prefix or search-tool name fails the run with
+     `the session has no tool named ... although its MCP servers are
+     connected`, followed by the MCP tools the session actually loaded. A
+     wrong `read_tool` name is not checked this way: compare it with the
+     loaded tools that message lists, or with `claude mcp list`.
 
    Check the real names with `claude mcp list` and put the prefix in
    `meeting_pull.json`.
