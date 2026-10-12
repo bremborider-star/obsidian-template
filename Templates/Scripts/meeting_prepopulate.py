@@ -860,6 +860,11 @@ def split_frontmatter(text: str) -> tuple[str, str]:
     return text[3:end], text[end + 4:]
 
 
+# Tier 3 trusts group coverage only when at least this share of the group's
+# linked members has an email on file (see GroupsIndex.match).
+COVERAGE_MIN_RESOLVABLE = 0.7
+
+
 class GroupsIndex:
     """Index of Groups/*.md files: normalized title → stem, plus member-email
     sets for each group (built by resolving body wikilinks against the
@@ -878,6 +883,11 @@ class GroupsIndex:
         self.stems: list[str] = []
         self.norm_to_stem: dict[str, str] = {}
         self.stem_to_members: dict[str, set[str]] = {}  # emails
+        # People stems the group note links, with or without an email on
+        # file, and the subset that has one. A member with no email is
+        # UNKNOWN to tier 3, not absent: see match().
+        self.stem_to_people: dict[str, set[str]] = {}
+        self.stem_to_resolvable: dict[str, set[str]] = {}
         self.stem_to_aliases: dict[str, list[str]] = {}
 
     def load(self) -> None:
@@ -885,12 +895,14 @@ class GroupsIndex:
             log.warning('Groups dir does not exist: %s', GROUPS_DIR)
             return
         wikilink_re = re.compile(r'\[\[([^\]|]+)(?:\|[^\]]+)?\]\]')
+        with_email = set(self._people.email_to_stem.values())
         n_aliases = 0
         for p in GROUPS_DIR.glob('*.md'):
             stem = p.stem
             self.stems.append(stem)
             self.norm_to_stem[normalize_for_group_match(stem)] = stem
             members: set[str] = set()
+            people: set[str] = set()
             try:
                 text = p.read_text(encoding='utf-8', errors='replace')
             except OSError:
@@ -937,11 +949,14 @@ class GroupsIndex:
                 # Resolve link → email via PeopleIndex
                 stem_match = self._people.lookup_by_name(link)
                 if stem_match:
+                    people.add(stem_match)
                     # find any email associated with that stem
                     for email, s in self._people.email_to_stem.items():
                         if s == stem_match:
                             members.add(email)
             self.stem_to_members[stem] = members
+            self.stem_to_people[stem] = people
+            self.stem_to_resolvable[stem] = people & with_email
         log.info('GroupsIndex: %d groups, %d with at least one resolved '
                  'member, %d alias key(s)',
                  len(self.stems),
@@ -959,7 +974,11 @@ class GroupsIndex:
            prefer larger token sets to avoid 'Microsoft' matching 'Microsoft
            Biweekly' when the subject is 'Microsoft CAB').
         3. Attendee-set Jaccard/coverage fallback (Jaccard ≥ 0.5 OR group-
-           coverage ≥ 0.7, with at least 2 emails overlapping).
+           coverage ≥ 0.7, with at least 2 people overlapping), counted in
+           people rather than addresses and over the members that have an
+           email on file. Coverage is trusted only when at least
+           COVERAGE_MIN_RESOLVABLE of the group's linked members are
+           resolvable; otherwise only Jaccard can match.
         """
         norm_subj = normalize_for_group_match(subject)
         subject_tokens = set(norm_subj.split())
@@ -985,18 +1004,30 @@ class GroupsIndex:
             candidates.sort(reverse=True)  # prefer largest (most specific)
             return candidates[0][1]
 
-        # 3. Attendee-set overlap fallback
+        # 3. Attendee-set overlap fallback. An attendee with no People note
+        # stays a distinct (unmatchable) person keyed by its address.
+        attendees = {self._people.email_to_stem.get(e.lower(), '\0' + e.lower())
+                     for e in attendee_emails}
         best_stem: str | None = None
         best_score = 0.0
         for stem, members in self.stem_to_members.items():
             if not members:
                 continue
-            overlap = len(attendee_emails & members)
+            people = self.stem_to_resolvable.get(stem, set())
+            linked = self.stem_to_people.get(stem, set())
+            overlap = len(attendees & people)
             if overlap < 2:
                 continue
-            union = len(attendee_emails | members)
+            union = len(attendees | people)
             jaccard = overlap / union if union else 0.0
-            coverage = overlap / len(members)
+            # Coverage counts only the resolvable members, so on its own it
+            # let a 3-person group with one blank Email-Work match any meeting
+            # the other two attended (2/2). It is evidence only when most of
+            # the group is visible; otherwise the unknowns could be anyone.
+            if len(people) >= COVERAGE_MIN_RESOLVABLE * len(linked):
+                coverage = overlap / len(people)
+            else:
+                coverage = 0.0
             score = max(jaccard, coverage * 0.8)
             if (jaccard >= 0.5 or coverage >= 0.7) and score > best_score:
                 best_score = score
