@@ -79,7 +79,7 @@ def _default_watch_folder() -> str:
 def load_config() -> dict:
     """Load configuration, with sensible defaults if no config file exists."""
     defaults = {
-        "claude_model": "claude-sonnet-4-6",
+        "claude_model": "claude-sonnet-5-5",
         "vault_path": str(VAULT_ROOT),
         "watch_folder": _default_watch_folder(),
     }
@@ -98,13 +98,23 @@ def load_config() -> dict:
 # Claude cleanup
 # ---------------------------------------------------------------------------
 
+# Output ceiling. Sonnet 5.5 thinks by default and its thinking counts toward
+# max_tokens, so the old 4096 could cut a long dictation short.
+MAX_TOKENS = 16000
+
+
 def clean_transcription(client: anthropic.Anthropic, raw_text: str, model: str) -> str:
-    """Send raw dictation text to Claude for cleanup."""
+    """Send raw dictation text to Claude for cleanup.
+
+    Raises on a reply that is cut off, declined or empty, so the caller keeps
+    the raw file and retries it rather than writing a partial note. The text
+    is taken from the text blocks, not content[0]: a model that thinks
+    (Sonnet 5.5) returns a thinking block first."""
     log.info("Sending to Claude for cleanup (%d chars)...", len(raw_text))
 
     response = client.messages.create(
         model=model,
-        max_tokens=4096,
+        max_tokens=MAX_TOKENS,
         messages=[
             {
                 "role": "user",
@@ -125,7 +135,17 @@ def clean_transcription(client: anthropic.Anthropic, raw_text: str, model: str) 
         usage_log.record("voice_cleanup", model, response.usage)
     except Exception:
         pass
-    return response.content[0].text.strip()
+    stop = getattr(response, "stop_reason", None)
+    if stop == "max_tokens":
+        raise RuntimeError(f"{model} hit the {MAX_TOKENS}-token output limit; "
+                           "the cleaned text would be truncated")
+    if stop == "refusal":
+        raise RuntimeError(f"{model} declined to clean this dictation")
+    text = "\n".join(b.text for b in response.content
+                     if getattr(b, "type", None) == "text").strip()
+    if not text:
+        raise RuntimeError(f"{model} returned no text")
+    return text
 
 
 # ---------------------------------------------------------------------------

@@ -586,3 +586,63 @@ def test_counts_for_files_no_longer_in_the_inbox_are_pruned(
 
     assert json.loads((inbox / voice_cleanup.ATTEMPTS_FILE).read_text(
         encoding="utf-8")) == {"note.txt": 1}
+
+
+# ---------------------------------------------------------------------------
+# Sonnet 5.5 replies (2026-10-12): a thinking block comes first
+# ---------------------------------------------------------------------------
+
+class _Block:
+    def __init__(self, type_, text=None):
+        self.type = type_
+        if text is not None:
+            self.text = text
+
+
+class _Reply:
+    def __init__(self, *blocks, stop="end_turn"):
+        self.content = list(blocks)
+        self.stop_reason = stop
+        self.usage = {"input_tokens": 1, "output_tokens": 1}
+
+
+def _client_returning(reply, seen):
+    class _C:
+        class messages:
+            @staticmethod
+            def create(**kw):
+                seen.update(kw)
+                return reply
+    return _C()
+
+
+def test_a_leading_thinking_block_is_skipped():
+    """content[0].text raised on Sonnet 5.5: its first block is thinking,
+    which has no .text, so every dictation would have failed."""
+    seen = {}
+    out = voice_cleanup.clean_transcription(
+        _client_returning(_Reply(_Block("thinking"), _Block("text", " Clean text. ")), seen),
+        "um so clean text", "claude-sonnet-5-5")
+    assert out == "Clean text."
+    assert seen["max_tokens"] == voice_cleanup.MAX_TOKENS >= 16000
+
+
+@pytest.mark.parametrize("reply,marker", [
+    (_Reply(_Block("text", "half"), stop="max_tokens"), "output limit; the cleaned text would be truncated"),
+    (_Reply(_Block("text", ""), stop="refusal"), "declined to clean this dictation"),
+    (_Reply(_Block("thinking")), "returned no text"),
+])
+def test_a_cut_off_declined_or_empty_reply_raises(reply, marker):
+    """Raising keeps the raw dictation for a retry instead of writing a
+    partial or empty note."""
+    with pytest.raises(RuntimeError, match=marker):
+        voice_cleanup.clean_transcription(_client_returning(reply, {}), "raw", "claude-sonnet-5-5")
+
+
+def test_the_default_model_is_sonnet_5_5():
+    # load_config() is replaced by the autouse fixture, so read the shipped
+    # default and the example config directly.
+    src = Path(voice_cleanup.__file__).read_text(encoding="utf-8")
+    assert '"claude_model": "claude-sonnet-5-5"' in src
+    example = Path(voice_cleanup.__file__).with_name("voice_cleanup_config.yaml.example")
+    assert 'claude_model: "claude-sonnet-5-5"' in example.read_text(encoding="utf-8")
