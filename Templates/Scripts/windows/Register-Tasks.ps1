@@ -137,6 +137,14 @@ foreach ($job in $manifest.Jobs) {
         }
         if (-not $enable -and $job.RequiresRag) {
             Write-Host ("  registered (DISABLED): {0}  (RAG is not set up here; it is enabled once OBSIDIAN_COLLECTION_ID is set)" -f $taskName)
+        } elseif (-not $enable -and $taskName -eq 'meeting-pull' -and
+                  (Test-Path (Join-Path $scriptsDir '.config\meeting_pull.json'))) {
+            # Configured but off: say so loudly. It is not enabled for you --
+            # the opt-in is a hand run that proves the connector first -- but
+            # left quiet, it read as "0 meetings" for a week (2026-10-09).
+            Write-Warning ("registered (DISABLED): {0} -- it is CONFIGURED (meeting_pull.json exists) but will not run." -f $taskName)
+            Write-Warning "  Confirm it with: & `"$(Get-VenvPython)`" `"$(Join-Path $scriptsDir 'meeting_pull.py')`" --dry-run"
+            Write-Warning "  then: Enable-ScheduledTask -TaskPath '\Obsidian\' -TaskName 'meeting-pull'"
         } elseif (-not $enable) {
             Write-Host ("  registered (DISABLED): {0}" -f $taskName)
         } elseif (-not $job.Enabled) {

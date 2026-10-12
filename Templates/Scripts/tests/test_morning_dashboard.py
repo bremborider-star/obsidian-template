@@ -427,9 +427,10 @@ def test_a_failing_windows_task_gets_its_hint(monkeypatch, task):
         "lastResult": 2, "repetition": None,
         "triggerType": "MSFT_TaskWeeklyTrigger"}])
     [row] = md._collect_pipeline_health_windows()
-    assert row["status"] == "fail"
     label = md.WIN_HINT_LABELS.get(task, f"com.{task}")
-    # Exit 2 from a security control is "no baseline", which has its own hint.
+    # Exit 2 from a security control is "no baseline": not a failure but a
+    # control protecting nothing, so it reads "inactive" (2026-10-11).
+    assert row["status"] == ("inactive" if task == "security-integrity" else "fail")
     expected = md.security_hint(label, 2) or md.pipeline_hint(label)
     assert expected in row["problems"]
     assert not any("Library/Logs" in p for p in row["problems"])
@@ -916,3 +917,48 @@ def test_a_security_job_is_dated_by_its_own_run_record(monkeypatch, tmp_path):
                         lambda label: {"loaded": True, "exit": 0, "running": False})
     [row] = md.collect_pipeline_health()
     assert row["last_run"] == md._dt.datetime.fromtimestamp(1_790_000_000)
+
+
+# ---------------------------------------------------------------------------
+# "inactive": set up but doing nothing (a Windows report, 2026-10-11)
+# ---------------------------------------------------------------------------
+
+def test_a_configured_but_disabled_meeting_pull_is_reported(monkeypatch, tmp_path):
+    """The meeting pull's config was written but its task was disabled, and
+    the dashboard skipped it: "0 meetings" for a week with no warning."""
+    monkeypatch.setattr(md.sys, "platform", "win32")
+    monkeypatch.setattr(md, "SCRIPTS_DIR", tmp_path)
+    (tmp_path / ".config").mkdir()
+    (tmp_path / ".config" / "meeting_pull.json").write_text("{}", encoding="utf-8")
+    _fake_task_scheduler(monkeypatch, [_win_task("meeting-pull", state="Disabled", result=0)])
+    [row] = md._collect_pipeline_health_windows()
+    assert row["status"] == "inactive"
+    assert ("Configured (meeting_pull.json exists) but its scheduled task is disabled"
+            in row["problems"][0])
+    assert "Enable-ScheduledTask -TaskPath '\\Obsidian\\' -TaskName 'meeting-pull'" in row["problems"][0]
+
+
+def test_an_unconfigured_disabled_task_is_still_left_out(monkeypatch, tmp_path):
+    monkeypatch.setattr(md.sys, "platform", "win32")
+    monkeypatch.setattr(md, "SCRIPTS_DIR", tmp_path)
+    _fake_task_scheduler(monkeypatch, [_win_task("meeting-pull", state="Disabled", result=0),
+                                       _win_task("source-mail-pull", state="Disabled", result=0)])
+    assert md._collect_pipeline_health_windows() == []
+
+
+def test_a_mac_control_without_a_baseline_is_inactive(monkeypatch, tmp_path):
+    rows = _mac_jobs(monkeypatch, tmp_path, {
+        "com.obsidian.security.integrity": (False, {"loaded": True, "exit": 2, "running": False})})
+    row = rows["com.obsidian.security.integrity"]
+    assert row["status"] == "inactive"
+    assert md.security_hint("com.obsidian.security.integrity", 2) in row["problems"]
+
+
+def test_inactive_counts_as_needing_attention_on_the_page():
+    row = {"label": "meeting-pull", "name": "Meeting pull", "trigger": "disabled",
+           "status": "inactive", "last_run": None, "age_hours": None,
+           "problems": ["Configured but disabled."]}
+    out = md.render(_dt.date(2026, 10, 12), [], [], [], None, [row])
+    assert '<span class="status-pill fail">inactive</span>' in out
+    assert "1 need attention" in out
+    assert "all healthy" not in out

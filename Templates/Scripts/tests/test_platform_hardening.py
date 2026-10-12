@@ -141,3 +141,52 @@ def test_a_python_override_that_does_not_work_is_named(tmp_path, allow_subproces
                        env={**os.environ, "PYTHON": str(tmp_path / "no-such-python")})
     assert f"python:    NONE - PYTHON={tmp_path / 'no-such-python'} is not a working Python 3.10+" in r.stdout
     assert "RESULT: FAIL" in r.stdout
+
+
+# ---------------------------------------------------------------------------
+# #3 the unmatched-meeting digest runs on this interpreter
+# ---------------------------------------------------------------------------
+
+def test_the_digest_runs_on_the_running_interpreter(monkeypatch, tmp_path) -> None:
+    """Every Windows pre-populate run ended 'Digest refresh failed:
+    [WinError 2]': the digest was started with a hardcoded /usr/bin/python3."""
+    import sys as _sys
+    import meeting_prepopulate as mp
+    (tmp_path / "meeting_group_backfill.py").write_text("", encoding="utf-8")
+    monkeypatch.setattr(mp, "SCRIPTS_DIR", tmp_path)
+    seen = {}
+
+    def fake_run(argv, **kw):
+        seen["argv"] = argv
+        return subprocess.CompletedProcess(argv, 0, "done\n", "")
+    monkeypatch.setattr(mp.subprocess, "run", fake_run)
+    mp.refresh_unmatched_digest(dry_run=False)
+    assert seen["argv"][0] == _sys.executable
+    assert seen["argv"][1:] == [str(tmp_path / "meeting_group_backfill.py"), "--digest", "--apply"]
+
+
+# ---------------------------------------------------------------------------
+# #6 the retired-plugin detector reads notes, not the template's docs
+# ---------------------------------------------------------------------------
+
+def _plugin_in_use():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "plugin_in_use", REPO / "installers" / "lib" / "plugin_in_use.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_the_template_docs_do_not_count_as_dataview_notes(tmp_path) -> None:
+    """update.ps1 reported '2 note(s) still use Dataview queries' -- both were
+    the template's own docs quoting a query, so Dataview could never go."""
+    piu = _plugin_in_use()
+    for rel in ("docs/Data-Classification.md", "installers/notes.md"):
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_text("an inline `= this.file.name` query\n", encoding="utf-8")
+    assert piu.dataview_uses(tmp_path) == 0
+    # A user's own folder of that name is a note, and still counts.
+    (tmp_path / "Knowledge" / "docs").mkdir(parents=True)
+    (tmp_path / "Knowledge" / "docs" / "Mine.md").write_text("`= this.file.name`\n", encoding="utf-8")
+    assert piu.dataview_uses(tmp_path) == 1

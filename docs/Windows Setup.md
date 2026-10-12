@@ -177,7 +177,22 @@ in a fixed order:
    checked against their pinned hashes (`installers/lib/plugin_drift.py`), so a plugin you updated
    yourself inside Obsidian goes back to the reviewed version. Plugins the
    template has retired, Templater among them, are moved out of the vault.
-3. **`Register-Tasks.ps1`** re-registers every scheduled task.
+3. **`Register-Tasks.ps1`** re-registers every scheduled task. A task you
+   enabled stays enabled. The meeting pull is never enabled for you, but if
+   its `meeting_pull.json` exists and its task is still disabled, the update
+   warns, and the morning dashboard shows it as **inactive** with the command
+   to enable it.
+
+Re-registering rewrites each task's registration time. The integrity
+monitor ignores that (and the trigger's start date), so an update on its own
+shows no task drift; a changed schedule, action or principal still does.
+Either security control without a baseline shows as **inactive** on the
+dashboard rather than as a failure: it is protecting nothing until you set
+one up.
+
+If `update.ps1` finds an Open WebUI container published beyond this machine
+(one `setup-rag.ps1` created before 2026-10-11 was published on every
+interface), it recreates it on the same volume, bound to 127.0.0.1.
 
 All three are needed:
 

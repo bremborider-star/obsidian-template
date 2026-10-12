@@ -1256,6 +1256,12 @@ WIN_PIPELINE_NAMES = {
 # rag-sync has its own detailed section above (mirrors PIPELINE_EXCLUDE).
 WIN_PIPELINE_EXCLUDE = {"rag-sync"}
 
+# A disabled task whose job is configured is reported as "inactive" rather
+# than skipped: the file that shows it was set up, per task.
+WIN_CONFIGURED_WHEN = {
+    "meeting-pull": lambda: SCRIPTS_DIR / ".config" / "meeting_pull.json",
+}
+
 # A scheduled job caught mid-run has no result for this run yet; what the
 # scheduler reports is the previous run's. Scoring that as PASS showed a
 # failing pull green for the rest of the day whenever a machine woke late and
@@ -1405,9 +1411,25 @@ def _collect_pipeline_health_windows() -> list[dict]:
         name = t.get("name") or ""
         if name in WIN_PIPELINE_EXCLUDE:
             continue
-        # Disabled tasks are intentionally off (everything ships disabled), so
-        # skip them rather than flagging a failure — like an uninstalled agent.
+        # A disabled task is normally an optional job left off (rag-sync and
+        # source-mail-pull ship that way), so it is skipped like an
+        # uninstalled agent -- unless the job is configured. A meeting pull
+        # with its config written but its task disabled showed "0 meetings"
+        # for a week with nothing on this page (Windows, 2026-10-09).
         if (t.get("state") or "").strip().lower() == "disabled":
+            if name in WIN_CONFIGURED_WHEN and WIN_CONFIGURED_WHEN[name]().is_file():
+                results.append({
+                    "label": name,
+                    "name": WIN_PIPELINE_NAMES.get(name, name.replace("-", " ").capitalize()),
+                    "trigger": "disabled",
+                    "status": "inactive",
+                    "last_run": None,
+                    "age_hours": None,
+                    "problems": [
+                        f"Configured ({WIN_CONFIGURED_WHEN[name]().name} exists) but its scheduled "
+                        f"task is disabled, so it never runs. Enable it with: "
+                        f"Enable-ScheduledTask -TaskPath '\\Obsidian\\' -TaskName '{name}'"],
+                })
             continue
 
         trigger, max_age = _win_cadence(t.get("repetition"), t.get("triggerType"))
@@ -1448,6 +1470,8 @@ def _collect_pipeline_health_windows() -> list[dict]:
             problems.append("Has not run yet.")
 
         hint_label = WIN_HINT_LABELS.get(name, f"com.{name}")
+        if security_hint(hint_label, result) is not None:
+            status = "inactive"     # no baseline: protecting nothing, not drift
         hint = security_hint(hint_label, result) or pipeline_hint(hint_label)
         if hint and status != "pass":
             problems.append(hint)
@@ -1462,7 +1486,7 @@ def _collect_pipeline_health_windows() -> list[dict]:
             "problems": problems,
         })
 
-    order = {"fail": 0, "stale": 1, "running": 2, "pass": 3}
+    order = {"fail": 0, "inactive": 1, "stale": 2, "running": 3, "pass": 4}
     results.sort(key=lambda r: (order.get(r["status"], 4), r["name"].lower()))
     return results
 
@@ -1724,6 +1748,8 @@ def collect_pipeline_health(gateway: dict | None = None) -> list[dict]:
                 f"until the gateway is reachable again -- usually meaning the "
                 f"VPN is down.")
 
+        if security_hint(label, st["exit"]) is not None:
+            status = "inactive"     # no baseline: protecting nothing, not drift
         hint = security_hint(label, st["exit"]) or pipeline_hint(label)
         if hint and status != "pass":
             problems.append(hint)
@@ -1740,7 +1766,7 @@ def collect_pipeline_health(gateway: dict | None = None) -> list[dict]:
             "problems": problems,
         })
 
-    order = {"fail": 0, "stale": 1, "running": 2, "pass": 3}
+    order = {"fail": 0, "inactive": 1, "stale": 2, "running": 3, "pass": 4}
     results.sort(key=lambda r: (order.get(r["status"], 4), r["name"].lower()))
     return results
 
@@ -2214,7 +2240,7 @@ def render(today: _dt.date,
     parts.append('  <section class="card combined">\n')
 
     # ----- Pipeline health sub-section (very top: a dead job must be unmissable) -----
-    n_bad = sum(1 for p in health if p["status"] in ("fail", "stale"))
+    n_bad = sum(1 for p in health if p["status"] in ("fail", "inactive", "stale"))
     n_running = sum(1 for p in health if p["status"] == "running")
     pipes_accent = ("var(--todo)" if n_bad else
                     "var(--new)" if n_running else "var(--meet)")
@@ -2235,7 +2261,7 @@ def render(today: _dt.date,
         parts.append(f'      <div class="meta">{summary}</div>\n')
         for p in health:
             pill = {"pass": "pass", "stale": "warn", "running": "warn",
-                    "fail": "fail"}[p["status"]]
+                    "fail": "fail", "inactive": "fail"}[p["status"]]
             when = f'{p["last_run"]:%a %H:%M}' if p["last_run"] else "no runs"
             parts.append('      <div class="pipe-row">\n')
             parts.append(f'        <span class="status-pill {pill}">{html.escape(p["status"])}</span>\n')

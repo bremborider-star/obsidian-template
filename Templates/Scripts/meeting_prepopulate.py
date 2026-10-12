@@ -2278,7 +2278,9 @@ def refresh_unmatched_digest(dry_run: bool) -> None:
 
     Run out-of-process on purpose: the digest is a reporting nicety and must
     never be able to fail, hang, or raise its way into the ingestion path
-    that writes the meeting notes.
+    that writes the meeting notes. It runs on this process's own interpreter:
+    a hardcoded /usr/bin/python3 failed every run on Windows ([WinError 2],
+    2026-10-11), and on macOS it is the interpreter the agent already uses.
     """
     if dry_run:
         log.info('Digest refresh skipped (dry run).')
@@ -2289,7 +2291,7 @@ def refresh_unmatched_digest(dry_run: bool) -> None:
         return
     try:
         proc = subprocess.run(
-            ['/usr/bin/python3', str(script), '--digest', '--apply'],
+            [sys.executable, str(script), '--digest', '--apply'],
             capture_output=True, text=True, timeout=120)
         if proc.returncode == 0:
             log.info('Digest refreshed: %s',

@@ -35,11 +35,18 @@ DATAVIEW = re.compile(
 EXCALIDRAW_FM = re.compile(r"^excalidraw-plugin:", re.M)
 
 SKIP_DIRS = {".obsidian", ".trash", ".git", "node_modules", "Templates"}
+# The template's own documentation and installer, at the vault root only. They
+# ship in every vault cloned from the template, and docs that describe a
+# Dataview query quote one, so scanning them kept Dataview installed forever
+# (a Windows update, 2026-10-11). A user's Knowledge/docs/ is still a note.
+TOP_SKIP_DIRS = {"docs", "installers"}
 
 
 def notes(vault: Path):
     for root, dirs, files in os.walk(vault):
-        dirs[:] = [d for d in dirs if d not in SKIP_DIRS and not d.startswith(".")]
+        top = Path(root) == vault
+        dirs[:] = [d for d in dirs if d not in SKIP_DIRS and not d.startswith(".")
+                   and not (top and d in TOP_SKIP_DIRS)]
         for name in files:
             yield Path(root) / name
 

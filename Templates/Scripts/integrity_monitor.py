@@ -297,12 +297,45 @@ def scan_scheduled_tasks() -> dict[str, dict]:
             # A task that is there but whose definition we could not read
             # is a gap in the scan, not a task to leave out of it.
             raise PersistenceScanError(f"no exported definition for task {name!r}")
-        norm = re.sub(r"<Date>.*?</Date>", "", xml)   # drop re-register timestamp
+        norm = normalize_task_xml(xml)
+        v1 = re.sub(r"<Date>.*?</Date>", "", xml)
         out[name] = {
             "sha256": hashlib.sha256(norm.encode("utf-8")).hexdigest(),
             "size": len(norm),
+            # The pre-2026-10-12 normalisation, so a baseline taken before it
+            # still matches an unchanged task (see diff_dir).
+            "sha256_v1": hashlib.sha256(v1.encode("utf-8")).hexdigest(),
         }
     return out
+
+
+_TRIGGER_BLOCK = re.compile(r"<(TimeTrigger|CalendarTrigger)>.*?</\1>", re.S)
+_START = re.compile(r"<StartBoundary>[^<]*</StartBoundary>")
+_START_DATE = re.compile(
+    r"<StartBoundary>\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(?::\d{2})?)(?:\.\d+)?"
+    r"(?:Z|[+-]\d{2}:\d{2})?</StartBoundary>")
+
+
+def normalize_task_xml(xml: str) -> str:
+    """A task's exported XML with what every re-registration rewrites taken
+    out, so only a change to what the task does is drift.
+
+    Every update re-registers the \\Obsidian\\ tasks, and the trigger's
+    StartBoundary is the registration time: on a Windows machine seven of
+    nine findings after an "Already up to date" update were tasks whose only
+    change was that (2026-10-11), which trains whoever reads them to adopt
+    drift unread. Dropped: <Date>; the whole StartBoundary of a repeating
+    trigger (it is just when the repetition began); and the date and UTC
+    offset of any other StartBoundary, keeping its time of day -- moving a
+    daily job from 05:00 to 03:00 is still drift."""
+    norm = re.sub(r"<Date>.*?</Date>", "", xml)
+
+    def _repeating(m: re.Match) -> str:
+        block = m.group(0)
+        return _START.sub("<StartBoundary/>", block) if "<Repetition>" in block else block
+
+    norm = _TRIGGER_BLOCK.sub(_repeating, norm)
+    return _START_DATE.sub(r"<StartBoundary>\1</StartBoundary>", norm)
 
 
 def scan_persistence(launchagents: Path) -> dict[str, dict]:
@@ -671,7 +704,8 @@ def diff_dir(label: str, current: dict, baseline: dict) -> list[dict]:
                              "sha256": cur.get("sha256")})
             continue
         old = baseline[rel]
-        if cur.get("sha256") != old.get("sha256"):
+        # A task baselined before normalize_task_xml() matches on its old hash.
+        if cur.get("sha256") != old.get("sha256") and cur.get("sha256_v1") != old.get("sha256"):
             if content_change_ignored(label, rel):
                 continue
             findings.append({

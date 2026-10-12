@@ -724,3 +724,49 @@ class TestReviewRoundOne:
         d.mkdir(parents=True)
         (d / "settings.local.json").write_text('{"permissions": {"allow": ["Bash"]}}')
         assert "scripts:.claude/settings.local.json" in im.scan_agent_config(tmp_path / "vault", tmp_path)
+
+
+# ---------------------------------------------------------------------------
+# Re-registering a task is not drift (a Windows report, 2026-10-11)
+# ---------------------------------------------------------------------------
+
+def _task_xml(*, registered: str, daily_at: str = "05:00:00", exe: str = "pythonw.exe") -> str:
+    return (f"<Task><RegistrationInfo><Date>{registered}</Date></RegistrationInfo><Triggers>"
+            f"<CalendarTrigger><StartBoundary>{registered[:10]}T{daily_at}-04:00</StartBoundary>"
+            f"<ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay></CalendarTrigger>"
+            f"<TimeTrigger><Repetition><Interval>PT5M</Interval></Repetition>"
+            f"<StartBoundary>{registered}-04:00</StartBoundary></TimeTrigger></Triggers>"
+            f"<Actions><Exec><Command>{exe}</Command></Exec></Actions></Task>")
+
+
+def _scan(monkeypatch, xml: str) -> dict:
+    out = json.dumps({"vault-lint": xml}).encode()
+    monkeypatch.setattr(im.subprocess, "run",
+                        lambda *a, **k: subprocess.CompletedProcess(a[0], 0, out, b""))
+    return im.scan_scheduled_tasks()
+
+
+def test_a_reregistration_alone_is_not_drift(monkeypatch) -> None:
+    before = _scan(monkeypatch, _task_xml(registered="2026-10-05T13:19:02"))
+    after = _scan(monkeypatch, _task_xml(registered="2026-10-11T14:13:13"))
+    assert im.diff_dir("launchagents", after, before) == []
+
+
+@pytest.mark.parametrize("change", [{"daily_at": "03:00:00"}, {"exe": "evil.exe"}])
+def test_a_changed_schedule_or_action_is_still_drift(monkeypatch, change) -> None:
+    before = _scan(monkeypatch, _task_xml(registered="2026-10-05T13:19:02"))
+    after = _scan(monkeypatch, _task_xml(registered="2026-10-11T14:13:13", **change))
+    [f] = im.diff_dir("launchagents", after, before)
+    assert f["kind"] == "CONTENT_CHANGE" and f["path"] == "vault-lint"
+
+
+def test_a_baseline_from_before_the_normalisation_still_matches(monkeypatch) -> None:
+    """Old baselines hold the old hash; an unchanged task must not flood the
+    first run after this update with drift to adopt unread."""
+    xml = _task_xml(registered="2026-10-05T13:19:02")
+    cur = _scan(monkeypatch, xml)
+    import hashlib, re as _re
+    legacy = _re.sub(r"<Date>.*?</Date>", "", xml)
+    baseline = {"vault-lint": {"sha256": hashlib.sha256(legacy.encode()).hexdigest(),
+                               "size": len(legacy)}}
+    assert im.diff_dir("launchagents", cur, baseline) == []
