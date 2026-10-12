@@ -32,7 +32,7 @@ About 74 files across every content folder:
 
 | Folder | Contents |
 |---|---|
-| `People/` | 19 records — a full IT leadership team, two vendor contacts, four article authors |
+| `People/` | 19 records — a full IT leadership team, two vendor contacts, four article authors. Work addresses sit in `Email-Work`, the field the meeting pipeline matches on; Tilly Terabyte also has one in `Email-Work-2`, to show a second work address matching the same note |
 | `Groups/` | 2 static rosters with photos, 2 dynamic rosters (Bases queries) |
 | `Categories/` | The 5 index notes every template's `categories:` link points at |
 | `Knowledge/` | Tag taxonomy, data classification, vendor playbook, incident runbook |
@@ -146,7 +146,7 @@ so it cannot quietly rot:
 - **`Templates/Scripts/vault_lint.py`** — no broken wikilinks, no unreferenced
   notes, no missing frontmatter keys, and every topical tag drawn from
   `Knowledge/Tag Taxonomy.md`.
-- **`Templates/Scripts/tests/test_seed_demo_content.py`** — 38 tests, weighted
+- **`Templates/Scripts/tests/test_seed_demo_content.py`** — 40 tests, weighted
   toward the removal guard.
 
 ## Removing it

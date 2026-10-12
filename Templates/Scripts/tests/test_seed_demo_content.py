@@ -209,6 +209,49 @@ def test_required_frontmatter_keys_are_present(seeded):
     assert not missing, missing
 
 
+def test_seeded_people_resolve_by_email(seeded, monkeypatch):
+    """The meeting pipeline matches attendees to People notes by email
+    through meeting_prepopulate.PeopleIndex. A seeded note whose address sits
+    under a key the index does not read (the old bare `Email:`) can never be
+    matched, so the demo would show a schema the pipeline does not use."""
+    import meeting_prepopulate as mp
+
+    mod, vault = seeded
+    mod.seed(ANCHOR, dry_run=False)
+    monkeypatch.setattr(mp, "PEOPLE_DIR", vault / "People")
+    monkeypatch.setattr(mp, "PEOPLE_UNRESOLVED_DIR", vault / "People" / "_Unresolved")
+    idx = mp.PeopleIndex()
+    idx.load()
+
+    addresses = [(row[0], row[4]) for row in mod.PEOPLE]
+    addresses += list(mod.SECOND_WORK_EMAIL.items())
+    assert mod.SECOND_WORK_EMAIL, "demo should exercise Email-Work-2"
+    unmatched = [(stem, addr) for stem, addr in addresses
+                 if idx.lookup_by_email(addr) != stem]
+    assert not unmatched, f"seeded addresses PeopleIndex cannot resolve: {unmatched}"
+
+
+def test_seeded_people_carry_the_template_email_fields(seeded):
+    """Seeded People notes carry the People template's email fields, in its
+    order. Read from the template, so a field added there (as Email-Work-2
+    was) fails here until the seeder writes it too."""
+    template = Path(__file__).resolve().parents[2] / "People Template.md"
+    want = [line.split(":", 1)[0] for line in template.read_text().splitlines()
+            if line.startswith("Email")]
+    assert want, "People template has no email fields"
+
+    mod, vault = seeded
+    mod.seed(ANCHOR, dry_run=False)
+    wrong = {}
+    for p in (vault / "People").glob("*.md"):
+        fm = mod.FRONTMATTER_RE.match(p.read_text(encoding="utf-8")).group(1)
+        got = [line.split(":", 1)[0] for line in fm.splitlines()
+               if line.startswith("Email")]
+        if got != want:
+            wrong[p.stem] = got
+    assert not wrong, f"expected {want}, got {wrong}"
+
+
 def test_no_broken_wikilinks(seeded):
     """Every [[link]] in the dataset must resolve to a note the seeder also
     writes -- an unresolved link is the most visible kind of demo-data rot."""

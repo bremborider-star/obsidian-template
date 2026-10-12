@@ -152,7 +152,9 @@ PEOPLE = [
      "tilly.terabyte@nimbuswidgets.example", "(555) 010-0106",
      ["Leadership", "Analytics"],
      "Runs the data platform and the analytics team. Primary voice on data "
-     "governance in leadership meetings.",
+     "governance in leadership meetings. Holds a joint appointment with "
+     "Nimbus Labs, so invites reach her at either work address; the second "
+     "sits in `Email-Work-2` and matches her just like the first.",
      "Built the current warehouse from scratch. Currently evaluating whether the "
      "platform can support agentic AI workloads without a redesign."),
 
@@ -225,6 +227,13 @@ PEOPLE = [
      "External contact. Has run three comparable migrations at similar scale."),
 ]
 
+# A second work address, written to Email-Work-2. Kept out of the row tuple
+# so every row stays the same shape. One person is enough to show the field
+# doing something: an invite to either address resolves to the same note.
+SECOND_WORK_EMAIL = {
+    "Terabyte, Tilly": "tilly.terabyte@nimbuslabs.example",
+}
+
 # Article authors. These exist so the `author:` wikilink on every clipping
 # resolves, which is also what makes the Author view in Clippings.base work --
 # that view filters on the author note being the active file, so with no note
@@ -284,12 +293,15 @@ def slugify(subject: str) -> str:
 def person_note(stem, display, title, org, email, phone, tags, notes, bio,
                 created: dt.date) -> str:
     tag_block = "\n".join(f"  - {t}" for t in tags)
+    work2 = f" {SECOND_WORK_EMAIL[stem]}" if stem in SECOND_WORK_EMAIL else ""
     return f"""---
 categories:
   - "[[Categories/People]]"
 Title: {title}
 Organization: {org}
-Email: {email}
+Email-Personal:
+Email-Work: {email}
+Email-Work-2:{work2}
 Mobile Phone: {phone}
 preferred_name: {display.split()[0]}
 aliases:
@@ -326,7 +338,9 @@ categories:
   - "[[Categories/People]]"
 Title: {title}
 Organization: {org}
-Email:
+Email-Personal:
+Email-Work:
+Email-Work-2:
 Mobile Phone:
 preferred_name: {display.split()[0]}
 aliases:
