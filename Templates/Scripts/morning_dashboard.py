@@ -848,8 +848,27 @@ def _launchctl_status(label: str) -> dict:
     out = p.stdout.decode(errors="ignore")
     m = re.search(r'"LastExitStatus"\s*=\s*(-?\d+)', out)
     exit_code = int(m.group(1)) if m else None
-    running = bool(re.search(r'"PID"\s*=\s*\d+', out))
-    return {"loaded": True, "exit": exit_code, "running": running}
+    pm = re.search(r'"PID"\s*=\s*(\d+)', out)
+    return {"loaded": True, "exit": exit_code, "running": bool(pm),
+            "pid": int(pm.group(1)) if pm else None}
+
+
+def _process_elapsed_hours(pid: int | None) -> float | None:
+    """How long a process has been running, from `ps -o etime=`
+    ([[dd-]hh:]mm:ss), or None when it cannot be read."""
+    if not pid:
+        return None
+    try:
+        p = subprocess.run(["/bin/ps", "-o", "etime=", "-p", str(pid)],
+                           capture_output=True, timeout=10)
+    except Exception:
+        return None
+    m = re.fullmatch(r"(?:(\d+)-)?(?:(\d+):)?(\d+):(\d+)",
+                     p.stdout.decode(errors="ignore").strip())
+    if not m:
+        return None
+    d, h, mi, se = (int(x) if x else 0 for x in m.groups())
+    return d * 24 + h + mi / 60 + se / 3600
 
 
 # --- Verified diagnosis helpers ---------------------------------------------
@@ -1348,7 +1367,24 @@ def _await_finish(label: str, deadline: float) -> dict:
 
 
 def _running_row(label: str, name: str, trigger: str, last_run, age_hours,
-                 previous: str | None) -> dict:
+                 previous: str | None, *, running_hours: float | None = None,
+                 max_age: float | None = None, stop_hint: str | None = None) -> dict:
+    """A job caught mid-run: "running", or "fail" when it has been running
+    longer than its own staleness window -- it is hung, not busy.
+
+    A Windows tagger sat in one run for over a day (2026-10-11): every
+    30-minute start was refused because one was "already running", and this
+    page called it "running" the whole time, which reads as healthy."""
+    if running_hours is not None and max_age is not None and running_hours > max_age:
+        problems = [f"Has been running for {running_hours:.0f}h, longer than a "
+                    f"{trigger} job should take ({max_age:.0f}h); it is probably "
+                    f"hung, and no new run starts while it does."]
+        if stop_hint:
+            problems.append(stop_hint)
+        if previous:
+            problems.append(previous)
+        return {"label": label, "name": name, "trigger": trigger, "status": "fail",
+                "last_run": last_run, "age_hours": age_hours, "problems": problems}
     problems = ["Running now, so this run's result is not in yet. Re-check "
                 "when it finishes (refresh the dashboard)."]
     if previous:
@@ -1507,8 +1543,12 @@ def _collect_pipeline_health_windows() -> list[dict]:
         fallback = name.replace("-", " ").strip().capitalize()
         running = _win_running(t)
         if running and name not in SELF_JOBS:
-            results.append(_running_row(name, WIN_PIPELINE_NAMES.get(name, fallback),
-                                        trigger, last_run, age_hours, None))
+            # While a task runs, LastRunTime is when this run started.
+            results.append(_running_row(
+                name, WIN_PIPELINE_NAMES.get(name, fallback), trigger, last_run,
+                age_hours, None, running_hours=age_hours, max_age=max_age,
+                stop_hint=(f"After noting what it was doing, end it with: "
+                           f"Stop-ScheduledTask -TaskPath '\\Obsidian\\' -TaskName '{name}'")))
             continue
 
         problems: list[str] = []
@@ -1726,8 +1766,12 @@ def collect_pipeline_health(gateway: dict | None = None) -> list[dict]:
                     if st["exit"] not in (None, 0) else None)
             fallback_name = (label.replace("com.", "").replace("-", " ")
                                   .replace(".", " ").strip().capitalize())
-            results.append(_running_row(label, PIPELINE_NAMES.get(label, fallback_name),
-                                        trigger, last_run, age_hours, prev))
+            results.append(_running_row(
+                label, PIPELINE_NAMES.get(label, fallback_name), trigger, last_run,
+                age_hours, prev, running_hours=_process_elapsed_hours(st.get("pid")),
+                max_age=max_age,
+                stop_hint=(f"After noting what it was doing, end it with: "
+                           f"launchctl kill TERM gui/{getattr(os, "getuid", lambda: 0)()}/{label}")))
             continue
 
         problems: list[str] = []

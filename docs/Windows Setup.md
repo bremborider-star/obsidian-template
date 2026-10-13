@@ -240,10 +240,20 @@ every task shows once, on the first update after it, because the old record
 cannot tell a re-registration from a change. Those findings carry a note
 saying so. The update never adopts a new baseline
 itself. Its last lines print the commands that list the findings and the diff
-the update applied. Adopt the new state with `--update` only when every script
-finding is a file in that diff, every task finding is an `\Obsidian\` task,
-and there is no `state_dir` or `BULK_DELETE` finding. Anything else is a real
-alert.
+the update applied. Adopt the new state with `--update` only when every file
+finding (scripts, templates, `agent_config`, `script_config`) is a file in that
+diff, `venv` findings appear only if `requirements.lock` is in it, every task
+finding is an `\Obsidian\` task, and there is no `state_dir`, `secrets`,
+`PERMISSIONS` or `BULK_DELETE` finding. Anything else is a real alert. An
+update that changes how tasks are registered (as the per-task time limits did
+on 2026-10-13) also shows every task once.
+
+Each task has a time limit sized to its job: twice its interval (at least 15
+minutes) for a repeating job, 2 hours for a daily or weekly one, longer for
+podcast transcription and the RAG index (`TimeLimitMinutes` in
+`schedules.psd1`). Task Scheduler skips a start while a run is still going, so
+without a limit one hung run blocks every later start; the morning dashboard
+also reports a run that has gone on past its job's window as hung.
 
 To confirm it worked:
 

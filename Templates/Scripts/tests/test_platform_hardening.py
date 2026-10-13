@@ -191,3 +191,43 @@ def test_the_template_docs_do_not_count_as_dataview_notes(tmp_path) -> None:
     (tmp_path / "Knowledge" / "docs").mkdir(parents=True)
     (tmp_path / "Knowledge" / "docs" / "Mine.md").write_text("`= this.file.name`\n", encoding="utf-8")
     assert piu.dataview_uses(tmp_path) == 1
+
+
+# ---------------------------------------------------------------------------
+# Every Windows task has a time limit sized to its job (2026-10-11)
+# ---------------------------------------------------------------------------
+
+def _windows_jobs():
+    text = (WIN / "schedules.psd1").read_text(encoding="utf-8")
+    jobs = {}
+    for line in text.splitlines():
+        m = re.search(r"Name='([^']+)'.*Trigger=@\{ Type='(\w+)'(?:; Minutes=(\d+))?", line)
+        if m and not line.lstrip().startswith("#"):
+            lim = re.search(r"TimeLimitMinutes=(\d+)", line)
+            jobs[m.group(1)] = (m.group(2), int(m.group(3) or 0), int(lim.group(1)) if lim else None)
+    return jobs
+
+
+def _limit(kind, minutes, override):
+    """The rule in Register-Tasks.ps1's Get-TimeLimitMinutes, mirrored."""
+    if override:
+        return override
+    return max(2 * minutes, 15) if kind == "MinuteInterval" else 120
+
+
+def test_registration_sets_and_verifies_a_time_limit():
+    """The default 72 hours let one hung tagger run block every 30-minute
+    start for over a day: the next start is skipped while one runs."""
+    reg = (WIN / "Register-Tasks.ps1").read_text(encoding="utf-8")
+    assert "-ExecutionTimeLimit $limit" in reg
+    assert "$liveLimit -eq $limit" in reg          # read back, not assumed
+
+
+def test_every_job_gets_a_limit_far_below_three_days():
+    jobs = _windows_jobs()
+    assert len(jobs) >= 14
+    limits = {name: _limit(*spec) for name, spec in jobs.items()}
+    assert limits["tag-clippings"] == 60
+    assert limits["strip-ads"] == 15
+    assert limits["podcast-watch"] == 180 and limits["rag-sync"] == 240
+    assert max(limits.values()) <= 240

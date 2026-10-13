@@ -57,6 +57,19 @@ function New-TriggerFromSpec($t) {
     }
 }
 
+# How long one run may take before Task Scheduler ends it. A task left at the
+# default (72 hours) with the default IgnoreNew instance policy let one hung
+# tagger run block every 30-minute start for over a day (2026-10-11). A job
+# may set TimeLimitMinutes in schedules.psd1; otherwise an interval job gets
+# twice its interval (at least 15 minutes) and a daily or weekly job 2 hours.
+function Get-TimeLimitMinutes($job) {
+    if ($job.TimeLimitMinutes) { return [int]$job.TimeLimitMinutes }
+    if ($job.Trigger.Type -eq 'MinuteInterval') {
+        return [Math]::Max(2 * [int]$job.Trigger.Minutes, 15)
+    }
+    return 120
+}
+
 # Every task that did not end up as intended. Reported at the end and turned
 # into a non-zero exit: this script is how an existing install receives a fix,
 # so a silent failure here leaves the old behaviour running behind a screen of
@@ -96,7 +109,9 @@ foreach ($job in $manifest.Jobs) {
 
     $action   = New-ScheduledTaskAction -Execute $python -Argument $argString -WorkingDirectory $scriptsDir
     $trigger  = New-TriggerFromSpec $job.Trigger
-    $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -DontStopIfGoingOnBatteries -AllowStartIfOnBatteries
+    $limit    = New-TimeSpan -Minutes (Get-TimeLimitMinutes $job)
+    $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -DontStopIfGoingOnBatteries -AllowStartIfOnBatteries `
+                  -ExecutionTimeLimit $limit
     $taskName = $job.Name
 
     # Read before -Force replaces it. Re-running this is how an install picks
@@ -127,8 +142,11 @@ foreach ($job in $manifest.Jobs) {
         # Read it back. "No error" is not the claim being printed; "the task
         # now runs this" is, so that is what gets checked.
         $live = Get-ScheduledTask -TaskName $taskName -TaskPath "$folder\" -ErrorAction SilentlyContinue
+        $liveLimit = $null
+        try { $liveLimit = [System.Xml.XmlConvert]::ToTimeSpan([string]$live.Settings.ExecutionTimeLimit) } catch { }
         $ok = $live -and $live.Actions[0].Execute -eq $python -and
               $live.Actions[0].Arguments -eq $argString -and
+              $liveLimit -eq $limit -and
               (($live.State -eq 'Disabled') -eq (-not $enable))
         if (-not $ok) {
             Write-Warning ("NOT registered: {0} -- the task does not show the new definition" -f $taskName)

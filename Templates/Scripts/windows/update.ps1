@@ -180,9 +180,14 @@ if ($status -eq 'ok') {
     Write-Host "  Status: $status. The update changed watched files, so this is expected." -ForegroundColor Yellow
     Write-Host '  Before adopting it, confirm every finding is part of this update:'
     Write-Host "    findings:  & `"$venvPy`" `"$monitor`" --json"
-    Write-Host "    the diff:  git -C `"$vault`" diff --name-status $From $to -- Templates/Scripts"
-    Write-Host '  Script findings must be files in that diff; task findings must be \Obsidian\ tasks;'
-    Write-Host '  any state_dir or BULK_DELETE finding is NOT the update. Only then adopt it with:'
+    Write-Host "    the diff:  git -C `"$vault`" diff --name-status $From $to"
+    # Every file scope, not just scripts: a pull also changes templates and the
+    # vault's CLAUDE.md (agent_config), and a rule naming only scripts and
+    # tasks left those to guesswork (a Windows update, 2026-10-12).
+    Write-Host '  Every file finding (scripts, templates, agent_config, script_config) must be a'
+    Write-Host '  file in that diff. venv findings fit only if requirements.lock is in the diff.'
+    Write-Host '  Task findings must be \Obsidian\ tasks. Any state_dir, secrets, PERMISSIONS or'
+    Write-Host '  BULK_DELETE finding is NOT the update. Only then adopt it with:'
     Write-Host "    & `"$venvPy`" `"$monitor`" --update"
 }
 

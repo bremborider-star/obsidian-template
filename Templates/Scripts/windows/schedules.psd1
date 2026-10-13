@@ -40,7 +40,9 @@
         # this job is deliberately slower-ticking than the other watchers. It
         # takes one drop per tick (podcast_watch's own --max-per-run default)
         # and holds a single-instance lock, so a long episode can't stack runs.
-        @{ Name='podcast-watch';        Script='podcast_watch.py';      Args=@('--once');    Trigger=@{ Type='MinuteInterval'; Minutes=15 }; Enabled=$true }
+        # TimeLimitMinutes (see Register-Tasks.ps1): a long episode transcribed
+        # on CPU can legitimately take well over the default 30 minutes.
+        @{ Name='podcast-watch';        Script='podcast_watch.py';      Args=@('--once');    Trigger=@{ Type='MinuteInterval'; Minutes=15 }; Enabled=$true; TimeLimitMinutes=180 }
         @{ Name='strip-ads';            Script='strip_ads.py';          Args=@();            Trigger=@{ Type='MinuteInterval'; Minutes=5  }; Enabled=$true }
         @{ Name='meeting-prep';         Script='meeting_prep.py';       Args=@();            Trigger=@{ Type='MinuteInterval'; Minutes=5  }; Enabled=$true }
         @{ Name='meeting-prepopulate';  Script='meeting_prepopulate.py';Args=@();            Trigger=@{ Type='MinuteInterval'; Minutes=30 }; Enabled=$true }
@@ -58,7 +60,8 @@
         # Only where the optional local-LLM RAG layer is set up (rag_status.py:
         # OBSIDIAN_COLLECTION_ID configured). Elsewhere it would fail every
         # night unseen, so Register-Tasks enables it exactly when RAG is set up.
-        @{ Name='rag-sync';             Script='obsidian-rag-sync.py';  Args=@();            Trigger=@{ Type='Daily';  At='03:00' };        Enabled=$true; RequiresRag=$true }
+        # A first index of a large vault takes hours, so more than the default 2.
+        @{ Name='rag-sync';             Script='obsidian-rag-sync.py';  Args=@();            Trigger=@{ Type='Daily';  At='03:00' };        Enabled=$true; RequiresRag=$true; TimeLimitMinutes=240 }
         @{ Name='security-plugin-check';Script='plugin_integrity_check.py'; Args=@();        Trigger=@{ Type='Daily';  At='06:30' };        Enabled=$true }
         @{ Name='security-integrity';   Script='integrity_monitor.py';  Args=@();            Trigger=@{ Type='Daily';  At='06:35' };        Enabled=$true }
         @{ Name='morning-dashboard';    Script='morning_dashboard.py';  Args=@();            Trigger=@{ Type='Weekly'; At='07:00'; DaysOfWeek=@('Monday','Tuesday','Wednesday','Thursday','Friday') }; Enabled=$true }

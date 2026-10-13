@@ -1048,3 +1048,57 @@ def test_a_weekday_task_silent_since_last_week_is_still_stale(monkeypatch):
 def test_the_task_query_asks_for_the_trigger_days():
     import inspect
     assert "daysOfWeek=$dow" in inspect.getsource(md._query_windows_tasks)
+
+
+# ---------------------------------------------------------------------------
+# A run far past its window is hung, not "running" (Windows, 2026-10-11)
+# ---------------------------------------------------------------------------
+
+def test_a_windows_task_running_for_a_day_is_reported_hung(monkeypatch):
+    """The tagger sat in one run for over a day; every 30-minute start was
+    refused, and this page said "running" -- which reads as healthy."""
+    monkeypatch.setattr(md.sys, "platform", "win32")
+    now = _dt.datetime(2026, 10, 13, 0, 9, 0)
+    monkeypatch.setattr(md, "now_local", lambda: now.astimezone())
+    task = {"name": "tag-clippings", "state": "Running",
+            "lastRun": (now - _dt.timedelta(hours=25)).isoformat(),
+            "lastResult": 267009, "repetition": "PT30M",
+            "triggerType": "MSFT_TaskTimeTrigger"}
+    _fake_task_scheduler(monkeypatch, [task])
+    [row] = md._collect_pipeline_health_windows()
+    assert row["status"] == "fail"
+    assert "Has been running for 25h" in row["problems"][0]
+    assert "it is probably hung, and no new run starts while it does" in row["problems"][0]
+    assert "Stop-ScheduledTask -TaskPath '\\Obsidian\\' -TaskName 'tag-clippings'" in row["problems"][1]
+
+
+def test_a_windows_task_a_few_minutes_into_its_run_is_still_running(monkeypatch):
+    monkeypatch.setattr(md.sys, "platform", "win32")
+    now = _dt.datetime(2026, 10, 13, 0, 9, 0)
+    monkeypatch.setattr(md, "now_local", lambda: now.astimezone())
+    monkeypatch.setattr(md, "RUNNING_GRACE_SEC", 0, raising=False)
+    task = {"name": "tag-clippings", "state": "Running",
+            "lastRun": (now - _dt.timedelta(minutes=4)).isoformat(),
+            "lastResult": 267009, "repetition": "PT30M",
+            "triggerType": "MSFT_TaskTimeTrigger"}
+    _fake_task_scheduler(monkeypatch, [task])
+    [row] = md._collect_pipeline_health_windows()
+    assert row["status"] == "running"
+
+
+def test_a_mac_job_running_far_past_its_window_is_reported_hung(monkeypatch, tmp_path):
+    monkeypatch.setattr(md, "RUNNING_GRACE_SEC", 0, raising=False)
+    monkeypatch.setattr(md, "_process_elapsed_hours", lambda pid: 60.0 if pid == 4242 else None)
+    rows = _mac_jobs(monkeypatch, tmp_path, {
+        "com.obsidian.meeting-pull": (False, {"loaded": True, "exit": 0, "running": True, "pid": 4242})})
+    row = rows["com.obsidian.meeting-pull"]
+    assert row["status"] == "fail"
+    assert "Has been running for 60h" in row["problems"][0]
+    assert "launchctl kill TERM gui/" in row["problems"][1]
+
+
+@pytest.mark.parametrize("etime,hours", [("05:30", 5.5 / 60), ("02:00:00", 2.0), ("1-01:00:00", 25.0)])
+def test_ps_elapsed_time_is_parsed(monkeypatch, etime, hours):
+    monkeypatch.setattr(md.subprocess, "run",
+                        lambda *a, **k: subprocess.CompletedProcess(a[0], 0, (etime + "\n").encode(), b""))
+    assert md._process_elapsed_hours(123) == pytest.approx(hours)
