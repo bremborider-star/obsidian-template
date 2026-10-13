@@ -231,3 +231,31 @@ def test_every_job_gets_a_limit_far_below_three_days():
     assert limits["strip-ads"] == 15
     assert limits["podcast-watch"] == 180 and limits["rag-sync"] == 240
     assert max(limits.values()) <= 240
+
+
+# ---------------------------------------------------------------------------
+# Scripts parse on the oldest interpreter that runs them (2026-10-13)
+# ---------------------------------------------------------------------------
+
+APPLE_PY = Path("/usr/bin/python3")
+
+
+@pytest.mark.skipif(platform.system() != "Darwin" or not APPLE_PY.exists(),
+                    reason="Apple's /usr/bin/python3 only exists on macOS")
+def test_every_script_parses_on_apples_python(allow_subprocess):
+    """The dashboard and the security controls run on /usr/bin/python3 (3.9).
+    A nested-quote f-string, legal only from 3.12, passed the whole suite on
+    Homebrew 3.14 and broke the deployed dashboard; this parses every script
+    with the interpreter that actually runs them."""
+    scripts = sorted((REPO / "Templates" / "Scripts").glob("*.py"))
+    code = ("import ast, sys\n"
+            "bad = []\n"
+            "for f in sys.argv[1:]:\n"
+            "    try:\n"
+            "        ast.parse(open(f, encoding='utf-8').read(), f)\n"
+            "    except SyntaxError as e:\n"
+            "        bad.append('%s:%s %s' % (f, e.lineno, e.msg))\n"
+            "print('\\n'.join(bad)); sys.exit(1 if bad else 0)\n")
+    r = subprocess.run([str(APPLE_PY), "-c", code, *map(str, scripts)],
+                       capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, r.stdout + r.stderr

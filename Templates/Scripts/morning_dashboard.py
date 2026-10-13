@@ -1770,8 +1770,9 @@ def collect_pipeline_health(gateway: dict | None = None) -> list[dict]:
                 label, PIPELINE_NAMES.get(label, fallback_name), trigger, last_run,
                 age_hours, prev, running_hours=_process_elapsed_hours(st.get("pid")),
                 max_age=max_age,
-                stop_hint=(f"After noting what it was doing, end it with: "
-                           f"launchctl kill TERM gui/{getattr(os, "getuid", lambda: 0)()}/{label}")))
+                stop_hint=("After noting what it was doing, end it with: "
+                           "launchctl kill TERM gui/%d/%s"
+                           % (getattr(os, "getuid", lambda: 0)(), label))))
             continue
 
         problems: list[str] = []
