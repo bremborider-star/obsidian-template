@@ -219,10 +219,16 @@ Get-Content "$env:LOCALAPPDATA\obsidian-logs\tag-clippings.log" -Tail 50 -Encodi
 The logs are UTF-8; without `-Encoding UTF8`, Windows PowerShell 5.1 shows
 dashes and accented letters as garbled characters.
 
+If `%LOCALAPPDATA%\obsidian-logs` is empty or missing, the tasks were registered by an older
+version that ran scripts directly. Run the Windows update (see "Updating an
+install you already have") to pick up the runner. `Get-ScheduledTaskInfo -TaskName <name> -TaskPath '\Obsidian\'` still
+gives the last run time and exit code.
+
 **A job that hung.** Each scheduled task has a time limit sized to its job, and
 `run_logged.py` enforces it itself, two minutes before Task Scheduler would.
-A run that reaches it leaves a stack dump in its log (`Traceback (most recent
-call first)` for every thread, showing where it was stuck) followed by
+A run that reaches it leaves a stack dump in its log (a `Thread 0x...
+(most recent call first):` block for every thread, showing where it was
+stuck) followed by
 `run_logged: <task> ran past Ns; stopped it and its children`. The dump is the
 diagnosis: report it rather than just re-running. A run still going past its
 job's window also shows on the morning dashboard as `fail`, "probably hung".
@@ -232,10 +238,6 @@ was registered from inside a packaged app's terminal (see "One extra step on
 Windows"). Re-run `Templates\Scripts\windows\Install-DashboardActions.ps1`
 from a Start-menu PowerShell.
 
-If that directory is empty or missing, the tasks were registered by an older
-version that ran scripts directly. Run the Windows update (see "Updating an
-install you already have") to pick up the runner. `Get-ScheduledTaskInfo -TaskName <name> -TaskPath '\Obsidian\'` still
-gives the last run time and exit code.
 
 **Console windows flash up every few minutes (Windows).** The tasks are still
 registered with the old definition, which launched the console `python.exe`.

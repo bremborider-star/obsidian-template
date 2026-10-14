@@ -109,9 +109,10 @@ load_dotenv(Path.home() / "dev" / "secrets" / ".env")
 # Haiku-class task the way tagging is, so this is a Sonnet default rather than
 # the tagger's model. YOUTUBE_MODEL overrides it (and reaches the scheduled
 # path, because 20-secrets persists it to .env); --model overrides that.
-# This is Anthropic's own id. A gateway may name the same model differently
-# (a LiteLLM gateway serves it as "claude-sonnet-5.5"): set YOUTUBE_MODEL to
-# the gateway's name there. Sonnet 5 used the same id on both, 5.5 does not.
+# This is Anthropic's own id. Through a gateway that names the same model
+# differently (a LiteLLM gateway serves it as "claude-sonnet-5.5"), llm_endpoint
+# sends it under the gateway's name automatically; YOUTUBE_MODEL is for
+# choosing a different model.
 DEFAULT_MODEL = "claude-sonnet-5-5"
 # Output ceiling. Sonnet 5.5 thinks by default and its thinking counts toward
 # max_tokens; on a 12k-token transcript it spent ~40% more output than

@@ -382,7 +382,7 @@ these files and this repo's.
 
 | Variable | Default | Notes |
 | --- | --- | --- |
-| `CLASSIFIER_MODEL` | `claude-haiku-4-5-20251001` | Gateways often want their own alias |
+| `CLASSIFIER_MODEL` | `claude-haiku-4-5-20251001` | Through a gateway the default is sent under the gateway's own name for it automatically; set this only to choose another model |
 | `CLASSIFIER_PROMPT_CACHE` | `1` | Set `0` where the endpoint ignores `cache_control` |
 | `CLASSIFIER_ORG_CONTEXT` | generic | One line: whose vault, what field |
 | `CLASSIFIER_MAX_CHARS` | `6000` | Body characters sent per note |

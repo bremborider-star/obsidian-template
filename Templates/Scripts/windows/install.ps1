@@ -291,9 +291,9 @@ if ($prof) {
         Set-EnvValue -Key 'LLM_BASE_URL'     -Value $gwUrl          -Path $secrets -Force:$Force
         Set-EnvValue -Key 'LLM_API_KEY_NAME' -Value $gatewayKeyName -Path $secrets -Force:$Force
         # Only the ones the profile actually set; otherwise the scripts' own
-        # defaults win. A gateway that exposes model ALIASES rather than dated
-        # Anthropic ids needs the alias to reach the SCHEDULED runs too, not
-        # just a manual one -- which is the whole reason these land in .env.
+        # defaults win. A gateway's model aliases are matched automatically
+        # (llm_endpoint, against its /v1/models); these exist to choose a
+        # different model, and land in .env so the SCHEDULED runs see it too.
         foreach ($opt in @('TAGGER_MODEL', 'TAGGER_PROMPT_CACHE',
                            'CLASSIFIER_MODEL', 'CLASSIFIER_PROMPT_CACHE',
                            'CLASSIFIER_ORG_CONTEXT', 'YOUTUBE_MODEL')) {

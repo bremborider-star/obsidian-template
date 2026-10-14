@@ -5,8 +5,9 @@
 # load_dotenv() path in voice_cleanup.py if your secrets live elsewhere.
 
 # Claude model to use for cleanup
-# Anthropic's id. Behind a LiteLLM gateway use its name for the same model,
-# which may differ (e.g. "claude-sonnet-5.5"); check the gateway's /v1/models.
+# Anthropic's id. Through a gateway it is sent under the gateway's own name
+# for the same model (e.g. "claude-sonnet-5.5") automatically; llm_endpoint
+# matches it against the gateway's /v1/models.
 claude_model: "claude-sonnet-5-5"
 
 # Path to your Obsidian vault (only needed if the script can't auto-detect)
