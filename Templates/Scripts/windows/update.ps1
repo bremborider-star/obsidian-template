@@ -141,7 +141,7 @@ if ($LASTEXITCODE -ne 0) {
 # moved venv -- and never adds it.
 if (Test-Path -LiteralPath $DashboardSchemeKey) {
     Write-Host '== dashboard buttons =='
-    Register-DashboardActions -ScriptsDir $scriptsDir
+    $null = Register-DashboardActions -ScriptsDir $scriptsDir
 }
 
 # An Open WebUI container created before 2026-10-11 by setup-rag.ps1 is
@@ -187,7 +187,9 @@ if ($status -eq 'ok') {
     Write-Host '  Every file finding (scripts, templates, agent_config, script_config) must be a'
     Write-Host '  file in that diff. venv findings fit only if requirements.lock is in the diff.'
     Write-Host '  Task findings must be \Obsidian\ tasks. Any state_dir, secrets, PERMISSIONS or'
-    Write-Host '  BULK_DELETE finding is NOT the update. Only then adopt it with:'
+    Write-Host '  BULK_DELETE finding is NOT the update -- except state_dir plugin_allowlist.json'
+    Write-Host '  if you re-vetted plugins (plugin_integrity_check.py --update) since the last'
+    Write-Host '  baseline. Only then adopt it with:'
     Write-Host "    & `"$venvPy`" `"$monitor`" --update"
 }
 

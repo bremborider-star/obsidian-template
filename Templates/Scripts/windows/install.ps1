@@ -565,7 +565,7 @@ $wantDash = if ($null -ne $dashFlag) { $dashFlag } else {
     Confirm-Optional "Make the Morning Dashboard's buttons work? (registers the obsidian-dashboard:// URL scheme for you)"
 }
 if ($wantDash) {
-    Register-DashboardActions -ScriptsDir $scriptsDir
+    $null = Register-DashboardActions -ScriptsDir $scriptsDir
 } else {
     Write-Host '  skipped. Add later:  windows\Install-DashboardActions.ps1'
 }

@@ -244,7 +244,10 @@ the update applied. Adopt the new state with `--update` only when every file
 finding (scripts, templates, `agent_config`, `script_config`) is a file in that
 diff, `venv` findings appear only if `requirements.lock` is in it, every task
 finding is an `\Obsidian\` task, and there is no `state_dir`, `secrets`,
-`PERMISSIONS` or `BULK_DELETE` finding. Anything else is a real alert. An
+`PERMISSIONS` or `BULK_DELETE` finding. The one expected `state_dir` finding
+is `plugin_allowlist.json` after you re-vet plugins
+(`plugin_integrity_check.py --update`) since the last baseline. Anything else
+is a real alert. An
 update that changes how tasks are registered (as the per-task time limits did
 on 2026-10-13) also shows every task once.
 

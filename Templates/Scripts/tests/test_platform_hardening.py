@@ -269,3 +269,22 @@ def test_a_windows_toast_starts_powershell_without_a_console(monkeypatch):
     monkeypatch.setattr(sc.subprocess, "run", lambda *a, **k: seen.update(k))
     sc.notify("t", "m")
     assert seen["creationflags"] == 0x08000000
+
+
+def test_a_refused_button_install_does_not_report_success():
+    """It printed "The buttons appear on the next dashboard render" and exited
+    0 after refusing inside a packaged app (Windows, 2026-10-14)."""
+    common = (WIN / "common.ps1").read_text(encoding="utf-8")
+    body = common[common.index("function Register-DashboardActions"):
+                  common.index("function Unregister-DashboardActions")]
+    assert body.count("return $false") == 3 and body.count("return $true") == 1
+    inst = (WIN / "Install-DashboardActions.ps1").read_text(encoding="utf-8")
+    assert "if (-not (Register-DashboardActions" in inst and "exit 1" in inst
+    for caller in ("install.ps1", "update.ps1"):
+        assert "$null = Register-DashboardActions" in (WIN / caller).read_text(encoding="utf-8")
+
+
+def test_the_adopt_rule_allows_the_allowlist_after_a_revet():
+    for text in ((WIN / "update.ps1").read_text(encoding="utf-8"),
+                 (REPO / "update.sh").read_text(encoding="utf-8")):
+        assert "plugin_allowlist.json" in text and "re-vetted plugins" in text

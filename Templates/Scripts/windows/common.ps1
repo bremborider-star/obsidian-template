@@ -178,6 +178,10 @@ function Get-PackagedAncestor {
     return $null
 }
 
+# Returns $true when the handler is registered, $false when it is not (each
+# case has already warned). Callers that run it as one optional step discard
+# the result; Install-DashboardActions.ps1, whose whole job it is, exits 1 on
+# $false instead of announcing buttons that will not appear (2026-10-14).
 function Register-DashboardActions {
     param([Parameter(Mandatory)][string]$ScriptsDir)
     $packaged = Get-PackagedAncestor
@@ -186,13 +190,13 @@ function Register-DashboardActions {
         Write-Warning "    ($packaged), and a registry key written from here is visible only to that app."
         Write-Warning "  Open PowerShell from the Start menu and run:"
         Write-Warning ("    powershell -ExecutionPolicy Bypass -File `"{0}`"" -f (Join-Path $ScriptsDir 'windows\Install-DashboardActions.ps1'))
-        return
+        return $false
     }
     $pyw = Join-Path $ScriptsDir '.venv\Scripts\pythonw.exe'
     $handler = Join-Path $ScriptsDir 'windows\dashboard_action.py'
     if (-not (Test-Path -LiteralPath $pyw) -or -not (Test-Path -LiteralPath $handler)) {
         Write-Warning "  dashboard buttons not registered: need $pyw and $handler"
-        return
+        return $false
     }
     $command = '"{0}" "{1}" "%1"' -f $pyw, $handler
     # Optional, so a failure warns rather than ending an install or update
@@ -209,8 +213,10 @@ function Register-DashboardActions {
         New-ItemProperty -Path $DashboardSchemeKey -Name 'URL Protocol' -Value '' -PropertyType String -Force -ErrorAction Stop | Out-Null
         Set-Item -Path "$DashboardSchemeKey\shell\open\command" -Value $command -ErrorAction Stop
         Write-Host "  obsidian-dashboard:// -> $handler"
+        return $true
     } catch {
         Write-Warning "  dashboard buttons not registered: $_"
+        return $false
     }
 }
 

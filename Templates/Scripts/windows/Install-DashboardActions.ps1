@@ -20,6 +20,9 @@ $ErrorActionPreference = 'Stop'
 
 if ($Remove) { Unregister-DashboardActions; return }
 
-Register-DashboardActions -ScriptsDir (Get-ScriptsDir)
+if (-not (Register-DashboardActions -ScriptsDir (Get-ScriptsDir))) {
+    Write-Host '  Not registered (see the warning above); the dashboard will have no buttons.' -ForegroundColor Red
+    exit 1
+}
 Write-Host '  The buttons appear on the next dashboard render (Refresh, or tomorrow 07:00).'
 Write-Host '  Each click is logged to %LOCALAPPDATA%\obsidian-logs\dashboard-actions.log.'
