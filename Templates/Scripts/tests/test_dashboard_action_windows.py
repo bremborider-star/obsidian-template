@@ -233,7 +233,7 @@ def test_install_asks_or_follows_the_profile_like_macos_component_57() -> None:
     step = step[:step.index("== 85 security baselines ==")]
     assert "Get-ProfileFlag $prof 'DASHBOARD_ACTIONS'" in step
     assert "Confirm-Optional" in step                              # unattended runs decline
-    assert "if ($wantDash) {\n    Register-DashboardActions -ScriptsDir $scriptsDir" in step
+    assert "if ($wantDash) {\n    $null = Register-DashboardActions -ScriptsDir $scriptsDir" in step
     assert "macOS-only (URL-scheme handler app)" not in INSTALL_PS
     # after the venv exists (its pythonw is the handler's interpreter)
     assert INSTALL_PS.index("== 40 venv + deps ==") < INSTALL_PS.index("== 82 dashboard buttons ==")
