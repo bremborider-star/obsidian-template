@@ -91,13 +91,17 @@ touching it. Full detail in [`docs/Demo-Content.md`](docs/Demo-Content.md).
 - **Scripts:** `<vault>/Templates/Scripts/` on both platforms.
 - **Python:** a shared venv at `Templates/Scripts/.venv`. Needs **3.10+**
   (code uses PEP 604 `X | None` unions). macOS uses Homebrew python, NOT
-  `/usr/bin/python3` (that is 3.9), for the venv. The exception: the morning
-  dashboard and both security controls run on Apple's `/usr/bin/python3` on
-  purpose (they must work when the venv is broken), so `morning_dashboard.py`,
-  `plugin_integrity_check.py`, `integrity_monitor.py`, `security_common.py`
-  and what they import must stay 3.9-compatible: no nested same-quote
-  f-strings, no `match`, no runtime `X | Y`. `test_platform_hardening.py`
-  parses every script with `/usr/bin/python3` on macOS. Windows uses python.org / winget python.
+  `/usr/bin/python3` (that is 3.9), for the venv. But many jobs run on Apple's
+  `/usr/bin/python3`, not the venv: any plist or installer step that launches
+  it -- the morning dashboard and both security controls (on purpose: they
+  must work when the venv is broken), the meeting pull, prep and
+  pre-population jobs, vault lint, strip-ads, the Claude auth check, group
+  photos, the ribbon-order installer step. So treat every `Templates/Scripts`
+  script as 3.9 code: no nested same-quote f-strings, no `match`, no runtime
+  `X | Y` (annotations are fine under `from __future__ import annotations`).
+  `test_platform_hardening.py` parses every script with `/usr/bin/python3` on
+  macOS; before deploying, import a changed module with the interpreter its
+  plist names. Windows uses python.org / winget python.
   Deps: `requirements.txt` says what is needed (ALL of it — `requests` is
   required by the RAG sync); `requirements.lock` is what installs — every
   package at a locked release with its SHA256, written by
