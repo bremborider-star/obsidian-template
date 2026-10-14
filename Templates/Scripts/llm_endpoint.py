@@ -41,6 +41,7 @@ has already run by the time we read the environment.
 from __future__ import annotations
 
 import os
+import re
 import socket
 import sys
 from pathlib import Path
@@ -215,7 +216,74 @@ def client(**kwargs):
     key = get_secret(name)
     if not key:
         raise MissingCredential(name)
-    return anthropic.Anthropic(api_key=key, **kwargs)
+    c = anthropic.Anthropic(api_key=key, **kwargs)
+    if kwargs.get("base_url"):
+        _translate_models(c)
+    return c
+
+
+# --- Gateway model names ------------------------------------------------------
+#
+# A gateway names models its own way. The Hopkins LiteLLM gateway serves
+# "claude-haiku-4.5" and "claude-sonnet-5.5" where Anthropic's ids are
+# "claude-haiku-4-5-20251001" and "claude-sonnet-5-5", and rejects the
+# stock spelling with a 400. Every default in this vault is Anthropic's id, so
+# on a gateway each one had to be overridden by hand, and a default moving to a
+# new model broke every gateway install that had not (a Windows machine,
+# 2026-10-13: voice cleanup and the YouTube summarizer on claude-sonnet-5-5).
+# So through a gateway, the model a call asks for is matched once against the
+# gateway's own list (GET /v1/models) and sent under the name it serves.
+# A name the gateway already serves is sent as it is; with no match, or no
+# list, the call goes out unchanged and the gateway's own error explains it.
+
+MODEL_LIST_TIMEOUT_SEC = 15.0
+_SERVED: dict = {}          # base_url -> list of served model ids ([] = unknown)
+_DATE_SUFFIX = re.compile(r"-\d{8}$")
+
+
+def _canon(model_id: str) -> str:
+    """A spelling-insensitive key: lower case, no date suffix, dots as dashes."""
+    return _DATE_SUFFIX.sub("", model_id.strip().lower()).replace(".", "-")
+
+
+def served_model(model: str, served: list) -> str:
+    """The id in `served` that names the same model as `model`, else `model`.
+
+    An exact match wins. Otherwise the ids that agree once spelling is ignored
+    (date suffix, dots vs dashes) are candidates; a gateway's "-cached"
+    variants are a different routing of the model, never chosen for it."""
+    if not served or model in served:
+        return model
+    want = _canon(model)
+    hits = [s for s in served if _canon(s) == want and not s.lower().endswith("-cached")]
+    return sorted(hits, key=len)[0] if hits else model
+
+
+def _served_models(c) -> list:
+    url = str(getattr(c, "base_url", "") or "")
+    if url not in _SERVED:
+        try:
+            listing = c.with_options(timeout=MODEL_LIST_TIMEOUT_SEC, max_retries=0).models.list()
+            _SERVED[url] = [m.id for m in listing]
+        except Exception:                      # noqa: BLE001 - no list is not fatal
+            _SERVED[url] = []
+    return _SERVED[url]
+
+
+def _translate_models(c) -> None:
+    """Wrap c.messages.create so `model` is sent under the gateway's name.
+    A client without that surface (a test double) is left as it is."""
+    messages = getattr(c, "messages", None)
+    create = getattr(messages, "create", None)
+    if create is None:
+        return
+
+    def create_with_gateway_name(*args, **kwargs):
+        if isinstance(kwargs.get("model"), str):
+            kwargs["model"] = served_model(kwargs["model"], _served_models(c))
+        return create(*args, **kwargs)
+
+    c.messages.create = create_with_gateway_name
 
 
 if __name__ == "__main__":

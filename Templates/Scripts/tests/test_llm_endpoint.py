@@ -433,3 +433,75 @@ class TestBoundedWait:
         llm_endpoint.client(timeout=5.0, max_retries=0)
         assert fake_anthropic[0]["timeout"] == 5.0
         assert fake_anthropic[0]["max_retries"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Gateway model names (a Windows machine, 2026-10-13)
+# ---------------------------------------------------------------------------
+
+GATEWAY_SERVES = ["claude-haiku-4.5", "claude-sonnet-4-6", "claude-sonnet-5",
+                  "claude-sonnet-5-cached", "claude-sonnet-5.5", "claude-sonnet-5.5-cached",
+                  "claude-opus-5.5", "claude-opus-5.5-cached"]
+
+
+@pytest.mark.parametrize("asked,sent", [
+    ("claude-sonnet-5-5", "claude-sonnet-5.5"),          # the regression
+    ("claude-haiku-4-5-20251001", "claude-haiku-4.5"),   # dated stock id
+    ("claude-sonnet-5.5", "claude-sonnet-5.5"),          # already its name
+    ("claude-sonnet-4-6", "claude-sonnet-4-6"),
+    ("claude-opus-5-5", "claude-opus-5.5"),              # never the -cached variant
+    ("claude-fable-5-1", "claude-fable-5-1"),            # not served: unchanged
+])
+def test_a_model_is_sent_under_the_name_the_gateway_serves(asked, sent):
+    assert llm_endpoint.served_model(asked, GATEWAY_SERVES) == sent
+
+
+def test_without_a_model_list_the_name_is_unchanged():
+    assert llm_endpoint.served_model("claude-sonnet-5-5", []) == "claude-sonnet-5-5"
+
+
+class _Models:
+    def __init__(self, ids, boom=False):
+        self.ids, self.boom, self.calls = ids, boom, 0
+
+    def list(self):
+        self.calls += 1
+        if self.boom:
+            raise RuntimeError("no /v1/models here")
+        return [type("M", (), {"id": i})() for i in self.ids]
+
+
+class _Client:
+    def __init__(self, url, models):
+        self.base_url = url
+        self.models = models
+        self.sent = []
+        outer = self
+
+        class _Messages:
+            def create(self, **kw):
+                outer.sent.append(kw["model"])
+                return "reply"
+        self.messages = _Messages()
+
+    def with_options(self, **kw):
+        return self
+
+
+def test_the_client_translates_once_per_process(monkeypatch):
+    monkeypatch.setattr(llm_endpoint, "_SERVED", {})
+    models = _Models(GATEWAY_SERVES)
+    c = _Client("https://gw.example.edu", models)
+    llm_endpoint._translate_models(c)
+    c.messages.create(model="claude-sonnet-5-5", max_tokens=1, messages=[])
+    c.messages.create(model="claude-haiku-4-5-20251001", max_tokens=1, messages=[])
+    assert c.sent == ["claude-sonnet-5.5", "claude-haiku-4.5"]
+    assert models.calls == 1
+
+
+def test_a_gateway_without_a_model_list_still_gets_the_call(monkeypatch):
+    monkeypatch.setattr(llm_endpoint, "_SERVED", {})
+    c = _Client("https://gw.example.edu", _Models([], boom=True))
+    llm_endpoint._translate_models(c)
+    assert c.messages.create(model="claude-sonnet-5-5", max_tokens=1, messages=[]) == "reply"
+    assert c.sent == ["claude-sonnet-5-5"]
