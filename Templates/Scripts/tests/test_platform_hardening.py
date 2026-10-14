@@ -259,3 +259,13 @@ def test_every_script_parses_on_apples_python(allow_subprocess):
     r = subprocess.run([str(APPLE_PY), "-c", code, *map(str, scripts)],
                        capture_output=True, text=True, timeout=120)
     assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_a_windows_toast_starts_powershell_without_a_console(monkeypatch):
+    """Each dashboard click flashed two PowerShell windows (2026-10-13)."""
+    import security_common as sc
+    seen = {}
+    monkeypatch.setattr(sc.sys, "platform", "win32")
+    monkeypatch.setattr(sc.subprocess, "run", lambda *a, **k: seen.update(k))
+    sc.notify("t", "m")
+    assert seen["creationflags"] == 0x08000000

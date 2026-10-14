@@ -288,7 +288,11 @@ def notify(title: str, message: str) -> None:
                     [POWERSHELL_EXE, "-NoProfile", "-NonInteractive",
                      "-ExecutionPolicy", "Bypass", "-File", str(ps1),
                      "-Title", title, "-Message", message],
-                    check=False, capture_output=True, timeout=15)
+                    check=False, capture_output=True, timeout=15,
+                    # No console window: from a dashboard click (pythonw, no
+                    # console to inherit) each toast flashed two PowerShell
+                    # windows (2026-10-13). The toast itself still shows.
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000))
     except Exception:
         pass
 

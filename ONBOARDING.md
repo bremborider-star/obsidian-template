@@ -107,6 +107,14 @@ deliberately after you have validated it:
 Enable-ScheduledTask -TaskName meeting-pull -TaskPath '\Obsidian\'
 ```
 
+Run the installer and the updater from a PowerShell opened from the **Start
+menu**, not from a terminal inside another app. The Claude desktop app is a
+packaged (MSIX) app, and registry keys written from its terminal are visible
+only inside it: the dashboard's buttons, registered from there, never appear.
+The installer detects this, skips the buttons, and prints the command to run
+from a Start-menu PowerShell. Claude can still read logs and explain errors
+from its own terminal.
+
 ## First run — check it actually works
 
 Do these in order. The first two are safe to re-run anytime. Run them from
@@ -205,8 +213,24 @@ failed run ends with a `run_logged: <task> exited with code N` line. Each log
 is capped at 5 MB, with one older generation kept as `<task-name>.log.1`.
 
 ```powershell
-Get-Content "$env:LOCALAPPDATA\obsidian-logs\tag-clippings.log" -Tail 50
+Get-Content "$env:LOCALAPPDATA\obsidian-logs\tag-clippings.log" -Tail 50 -Encoding UTF8
 ```
+
+The logs are UTF-8; without `-Encoding UTF8`, Windows PowerShell 5.1 shows
+dashes and accented letters as garbled characters.
+
+**A job that hung.** Each scheduled task has a time limit sized to its job, and
+`run_logged.py` enforces it itself, two minutes before Task Scheduler would.
+A run that reaches it leaves a stack dump in its log (`Traceback (most recent
+call first)` for every thread, showing where it was stuck) followed by
+`run_logged: <task> ran past Ns; stopped it and its children`. The dump is the
+diagnosis: report it rather than just re-running. A run still going past its
+job's window also shows on the morning dashboard as `fail`, "probably hung".
+
+**No buttons on the Windows dashboard.** The `obsidian-dashboard://` handler
+was registered from inside a packaged app's terminal (see "One extra step on
+Windows"). Re-run `Templates\Scripts\windows\Install-DashboardActions.ps1`
+from a Start-menu PowerShell.
 
 If that directory is empty or missing, the tasks were registered by an older
 version that ran scripts directly. Run the Windows update (see "Updating an

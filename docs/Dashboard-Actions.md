@@ -57,6 +57,13 @@ elevation — whose command runs `dashboard_action.py` with the venv's
 `pythonw.exe`. `update.ps1` refreshes the key if it exists and never adds it;
 `uninstall.ps1` removes it.
 
+Run it from a PowerShell opened from the **Start menu**. From a terminal
+inside a packaged (MSIX) app, such as the Claude desktop app, a key under
+`HKCU\Software\Classes` is written to that app's private registry, where no
+browser or scheduled task sees it: the buttons never appear, while the check
+above, run from the same terminal, says the key is there. The script detects
+a packaged parent, writes nothing, and prints the command to use instead.
+
 The handler accepts exactly the three actions below and reads nothing else
 from the URL. Each runs the job the way its scheduled task does — through
 `run_logged.py`, appending to `%LOCALAPPDATA%\obsidian-logs\<task>.log`, with

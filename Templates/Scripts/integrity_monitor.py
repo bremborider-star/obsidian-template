@@ -242,6 +242,12 @@ class PersistenceScanError(Exception):
     as NEW_FILE instead of comparing it against what it was."""
 
 
+# Exporting each \\Obsidian\\ task's XML took over two minutes on a Windows
+# laptop (2026-10-13), and at 30 seconds every scheduled check failed with
+# SCAN_FAILED. Five minutes is well inside the task's own 2-hour limit.
+TASK_SCAN_TIMEOUT_SEC = 300
+
+
 def scan_scheduled_tasks() -> dict[str, dict]:
     """Windows analog of hashing ~/Library/LaunchAgents plists: hash the exported
     XML definition of each Task Scheduler task under \\Obsidian\\. Catches a vault
@@ -274,7 +280,7 @@ def scan_scheduled_tasks() -> dict[str, dict]:
         p = subprocess.run(
             [security_common.POWERSHELL_EXE, "-NoProfile", "-NonInteractive",
              "-Command", ps],
-            capture_output=True, timeout=30)
+            capture_output=True, timeout=TASK_SCAN_TIMEOUT_SEC)
     except Exception as exc:
         raise PersistenceScanError(
             f"could not run PowerShell: {type(exc).__name__}: {exc}") from exc

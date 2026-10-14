@@ -840,3 +840,15 @@ class TestProgress:
         monkeypatch.setattr(im, "_isatty", lambda _s: False)
         im.main(sandbox)
         assert "scanning" not in capsys.readouterr().err
+
+
+def test_the_task_scan_allows_minutes_not_seconds(monkeypatch) -> None:
+    """At 30 seconds every scheduled check on a Windows laptop failed with
+    SCAN_FAILED: exporting the tasks took over two minutes (2026-10-13)."""
+    seen = {}
+    def fake_run(*a, **k):
+        seen.update(k)
+        return subprocess.CompletedProcess(a[0], 0, b"{}", b"")
+    monkeypatch.setattr(im.subprocess, "run", fake_run)
+    im.scan_scheduled_tasks()
+    assert seen["timeout"] == im.TASK_SCAN_TIMEOUT_SEC >= 300

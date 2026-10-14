@@ -104,12 +104,17 @@ foreach ($job in $manifest.Jobs) {
     # run_logged.py <task-name> <script> [args]: the task name doubles as the
     # log file name. Quote both paths (handles spaces in the profile/vault
     # path) and append the job's own args.
-    $argString = '"{0}" {1} "{2}"' -f $runner, $job.Name, $scriptPath
+    # --timeout: run_logged's own limit, two minutes under Task Scheduler's.
+    # When it fires, run_logged stops the job's whole process tree and the job
+    # has already dumped its stacks into its log (job_boot.py); Task
+    # Scheduler's limit alone ends only run_logged and orphans the job.
+    $limitMin  = Get-TimeLimitMinutes $job
+    $argString = '"{0}" --timeout {1} {2} "{3}"' -f $runner, ([Math]::Max(60, $limitMin * 60 - 120)), $job.Name, $scriptPath
     if ($job.Args -and $job.Args.Count -gt 0) { $argString += ' ' + ($job.Args -join ' ') }
 
     $action   = New-ScheduledTaskAction -Execute $python -Argument $argString -WorkingDirectory $scriptsDir
     $trigger  = New-TriggerFromSpec $job.Trigger
-    $limit    = New-TimeSpan -Minutes (Get-TimeLimitMinutes $job)
+    $limit    = New-TimeSpan -Minutes $limitMin
     $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -DontStopIfGoingOnBatteries -AllowStartIfOnBatteries `
                   -ExecutionTimeLimit $limit
     $taskName = $job.Name

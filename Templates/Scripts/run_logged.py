@@ -110,18 +110,24 @@ def child_env() -> dict:
 CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
 
 
-def child_command(script: str, args: list[str]) -> list[str]:
+def child_command(script: str, args: list[str], dump: float | None = None) -> list[str]:
     """The job's command line: the console interpreter, even under pythonw.
 
     See the module docstring for why the child must be python.exe. If the
     console interpreter is missing, pythonw.exe runs the job instead: it still
     works, and only a grandchild console program would show a window.
+
+    With `dump`, the job starts through job_boot.py, which dumps its stacks
+    to the log if it is still running after that many seconds.
     """
     exe = Path(sys.executable)
     if sys.platform == "win32" and exe.name.lower() == "pythonw.exe":
         console = exe.with_name("python.exe")
         if console.is_file():
             exe = console
+    boot = Path(__file__).resolve().with_name("job_boot.py")
+    if dump and boot.is_file():
+        return [str(exe), str(boot), "%.0f" % dump, script, *args]
     return [str(exe), script, *args]
 
 
@@ -162,12 +168,20 @@ def exit_status(rc: int) -> int:
     return rc
 
 
-# A time limit, in seconds, for this one run. Set only by the dashboard's
-# handler (windows/dashboard_action.py); scheduled runs have none here, Task
-# Scheduler's own limit applies to them. It is enforced in this process,
-# which knows the job's process: on expiry the whole tree is stopped, not
-# just the job's interpreter -- a meeting pull's claude CLI included.
+# A time limit, in seconds, for this one run: `--timeout N` before the job
+# name (what each scheduled task passes, two minutes under its Task Scheduler
+# limit), or RUN_LOGGED_TIMEOUT (what the dashboard's handler sets,
+# windows/dashboard_action.py). It is enforced in this process, which knows
+# the job's process: on expiry the whole tree is stopped, not just the job's
+# interpreter -- a meeting pull's claude CLI included. Task Scheduler's own
+# limit cannot do that: it ends this wrapper, and a hung tagger's python.exe
+# pair outlived it as orphans (2026-10-13). So the wrapper's limit has to
+# fire first.
 TIMEOUT_ENV = "RUN_LOGGED_TIMEOUT"
+# How long before the limit the job's stacks are dumped into its log
+# (job_boot.py), so a hung run says where it was stuck before it is stopped.
+DUMP_LEAD_SEC = 60.0
+_ARG_TIMEOUT: list = []      # set by main() from --timeout
 TIMED_OUT = 124
 # By absolute path, as security_common calls system tools: a bare name would
 # be looked up in the interpreter's own folder and the working directory
@@ -177,11 +191,21 @@ TASKKILL_EXE = str(Path(os.environ.get("SystemRoot") or r"C:\Windows")
 
 
 def _timeout() -> float | None:
+    if _ARG_TIMEOUT:
+        return _ARG_TIMEOUT[0]
     try:
         t = float(os.environ.get(TIMEOUT_ENV, ""))
     except ValueError:
         return None
     return t if t > 0 else None
+
+
+def dump_after(limit: float | None) -> float | None:
+    """When job_boot should dump the job's stacks: a minute before the limit,
+    or halfway through a limit too short for that."""
+    if not limit:
+        return None
+    return limit - DUMP_LEAD_SEC if limit > 2 * DUMP_LEAD_SEC else limit / 2
 
 
 def _stop_tree(proc: subprocess.Popen) -> None:
@@ -223,7 +247,7 @@ def _run_child(cmd: list[str], job: str, **kw) -> int:
 
 
 def run(job: str, script: str, args: list[str]) -> int:
-    cmd = child_command(script, args)
+    cmd = child_command(script, args, dump_after(_timeout()))
     path = log_path(job)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -276,6 +300,18 @@ def main(argv: list[str]) -> int:
     if len(argv) < 2:
         diag("usage: run_logged.py <job-name> <script.py> [args...]")
         return 2
+    if argv and argv[0] == "--timeout":
+        try:
+            limit = float(argv[1])
+        except (IndexError, ValueError):
+            diag("run_logged: --timeout needs a number of seconds")
+            return 2
+        if limit > 0:
+            _ARG_TIMEOUT[:] = [limit]
+        argv = argv[2:]
+        if len(argv) < 2:
+            diag("usage: run_logged.py [--timeout SECONDS] <job-name> <script.py> [args...]")
+            return 2
     job, script, rest = argv[0], argv[1], argv[2:]
     if not _JOB_NAME.match(job):
         diag(f"run_logged: refusing job name {job!r}: it becomes a filename")

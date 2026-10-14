@@ -227,7 +227,7 @@ class TestEveryTaskRunsThroughTheWrapper:
     def test_the_task_action_invokes_run_logged_with_the_task_name(self) -> None:
         src = (WINDOWS / "Register-Tasks.ps1").read_text(encoding="utf-8")
         assert "$runner     = Join-Path $scriptsDir 'run_logged.py'" in src
-        assert """$argString = '"{0}" {1} "{2}"' -f $runner, $job.Name, $scriptPath""" in src, (
+        assert """$argString = '"{0}" --timeout {1} {2} "{3}"' -f $runner, ([Math]::Max(60, $limitMin * 60 - 120)), $job.Name, $scriptPath""" in src, (
             "Register-Tasks.ps1 no longer routes the task through run_logged.py; "
             "Task Scheduler will discard the job's output again")
         assert "New-ScheduledTaskAction -Execute $python -Argument $argString" in src
@@ -402,3 +402,58 @@ class TestRegistrationFailuresAreLoud:
         after = src[call:call + 300]
         assert "if ($LASTEXITCODE -ne 0) {" in after
         assert "throw 'scheduled-task registration failed" in after
+
+
+# ---------------------------------------------------------------------------
+# Scheduled runs: run_logged's own limit, and a stack dump before it (2026-10-13)
+# ---------------------------------------------------------------------------
+
+class TestScheduledTimeLimit:
+    """A hung Windows tagger outlived Task Scheduler's stop as orphans: that
+    stop ends only this wrapper. The wrapper's own --timeout fires first,
+    stops the whole tree, and the job has dumped its stacks by then."""
+
+    def test_timeout_flag_is_parsed_and_wins(self, monkeypatch) -> None:
+        seen = {}
+        monkeypatch.setattr(rl, "run", lambda job, script, rest: seen.update(
+            job=job, script=script, rest=rest, limit=rl._timeout()) or 0)
+        monkeypatch.setattr(rl, "_ARG_TIMEOUT", [])
+        monkeypatch.setenv(rl.TIMEOUT_ENV, "999")
+        monkeypatch.setenv(rl.LOCK_HELD_ENV, "tag-clippings")
+        assert rl.main(["--timeout", "3480", "tag-clippings", "tag_clippings.py", "--x"]) == 0
+        assert seen == {"job": "tag-clippings", "script": "tag_clippings.py",
+                        "rest": ["--x"], "limit": 3480.0}
+
+    @pytest.mark.parametrize("argv", [["--timeout"], ["--timeout", "soon", "j", "s.py"],
+                                      ["--timeout", "60", "only-job"]])
+    def test_a_bad_timeout_is_a_usage_error(self, argv, monkeypatch) -> None:
+        monkeypatch.setattr(rl, "_ARG_TIMEOUT", [])
+        assert rl.main(argv) == 2
+
+    def test_with_a_limit_the_job_starts_through_job_boot(self) -> None:
+        cmd = rl.child_command("job.py", ["--once"], rl.dump_after(3480))
+        assert Path(cmd[1]).name == "job_boot.py"
+        assert cmd[2:] == ["3420", "job.py", "--once"]
+
+    def test_without_a_limit_the_job_starts_directly(self) -> None:
+        assert rl.child_command("job.py", ["--once"], rl.dump_after(None))[1:] == ["job.py", "--once"]
+
+    def test_a_hung_job_dumps_its_stack_into_the_log_before_it_is_stopped(
+            self, tmp_path, monkeypatch, allow_subprocess) -> None:
+        """The whole path: run_logged --timeout, job_boot's dump, the stop."""
+        monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "lad"))
+        script = tmp_path / "hang.py"
+        script.write_text("import time\nprint('started', flush=True)\ntime.sleep(60)\n",
+                          encoding="utf-8")
+        monkeypatch.setattr(rl, "_ARG_TIMEOUT", [])
+        monkeypatch.setattr(rl, "DUMP_LEAD_SEC", 2.0)
+        monkeypatch.setenv(rl.LOCK_HELD_ENV, "hang-demo")
+        import time as _time
+        t0 = _time.monotonic()
+        assert rl.main(["--timeout", "6", "hang-demo", str(script)]) == rl.TIMED_OUT
+        assert _time.monotonic() - t0 < 30
+        log = rl.log_path("hang-demo").read_text(encoding="utf-8")
+        assert "started" in log
+        assert "most recent call first" in log           # faulthandler's dump header
+        assert "hang.py" in log
+        assert "ran past 6s; stopped it and its children" in log

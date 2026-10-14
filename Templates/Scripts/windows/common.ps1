@@ -158,8 +158,36 @@ function Install-Requirements {
 # this key points at a handler that exists.
 $DashboardSchemeKey = 'HKCU:\Software\Classes\obsidian-dashboard'
 
+# The path of a packaged (MSIX) app this PowerShell runs under, or $null.
+# A packaged app's child processes have their HKCU\Software\Classes writes
+# redirected into the package's private registry hive, which nothing outside
+# the package reads: a scheme registered from the Claude desktop app's
+# terminal was visible to that terminal and to no browser or scheduled task,
+# so the dashboard silently drew no buttons (Windows, 2026-10-12). The
+# package API reports no package from inside such a shell, so the parent
+# chain is what shows it.
+function Get-PackagedAncestor {
+    $id = $PID
+    for ($i = 0; $i -lt 16 -and $id; $i++) {
+        $p = Get-CimInstance Win32_Process -Filter "ProcessId=$id" -ErrorAction SilentlyContinue
+        if (-not $p) { break }
+        if ($p.ExecutablePath -and $p.ExecutablePath -like '*\WindowsApps\*') { return $p.ExecutablePath }
+        if ($p.ParentProcessId -eq $id) { break }
+        $id = $p.ParentProcessId
+    }
+    return $null
+}
+
 function Register-DashboardActions {
     param([Parameter(Mandatory)][string]$ScriptsDir)
+    $packaged = Get-PackagedAncestor
+    if ($packaged) {
+        Write-Warning "  dashboard buttons not registered: this PowerShell runs inside a packaged app"
+        Write-Warning "    ($packaged), and a registry key written from here is visible only to that app."
+        Write-Warning "  Open PowerShell from the Start menu and run:"
+        Write-Warning ("    powershell -ExecutionPolicy Bypass -File `"{0}`"" -f (Join-Path $ScriptsDir 'windows\Install-DashboardActions.ps1'))
+        return
+    }
     $pyw = Join-Path $ScriptsDir '.venv\Scripts\pythonw.exe'
     $handler = Join-Path $ScriptsDir 'windows\dashboard_action.py'
     if (-not (Test-Path -LiteralPath $pyw) -or -not (Test-Path -LiteralPath $handler)) {

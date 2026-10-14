@@ -150,3 +150,43 @@ def test_rag_tagger_billion_laughs_frontmatter_is_refused(rag_tagger, capsys):
     refused = fm is None
     assert refused, "billion-laughs frontmatter was parsed"
     assert "frontmatter not parsed (YAML anchor in frontmatter)" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
+# A run where every call fails exits non-zero (Windows, 2026-10-13)
+# ---------------------------------------------------------------------------
+
+def _run_main(tagger, monkeypatch, tmp_path, outcomes):
+    vault = tmp_path / "vault"
+    (vault / "Clippings").mkdir(parents=True)
+    for i, _ in enumerate(outcomes):
+        (vault / "Clippings" / f"n{i}.md").write_text(f"# note {i}\nbody\n", encoding="utf-8")
+    import llm_endpoint
+    monkeypatch.setattr(llm_endpoint, "client", lambda **kw: object())
+    results = iter(outcomes)
+
+    def fake_process(*a, **k):
+        r = next(results)
+        if isinstance(r, Exception):
+            raise r
+        return r
+    monkeypatch.setattr(tagger, "process_file", fake_process)
+    monkeypatch.setattr(tagger, "RECENT_EDIT_GUARD_SECONDS", 0)
+    monkeypatch.setattr(sys, "argv", ["tag_clippings.py", "--vault", str(vault)])
+    return tagger.main
+
+
+def test_every_note_failing_exits_1(tagger, monkeypatch, tmp_path, capsys):
+    """Every model call got a 401 and the task still exited 0, so the
+    scheduler and the dashboard showed a pass while nothing was tagged."""
+    main = _run_main(tagger, monkeypatch, tmp_path,
+                     [RuntimeError("401 LiteLLM Virtual Key expected")] * 3)
+    with pytest.raises(SystemExit) as e:
+        main()
+    assert e.value.code == 1
+    assert "Every note this run tried (3) failed" in capsys.readouterr().out
+
+
+def test_one_bad_note_among_good_ones_still_exits_0(tagger, monkeypatch, tmp_path):
+    main = _run_main(tagger, monkeypatch, tmp_path, [True, RuntimeError("bad note"), False])
+    assert main() is None

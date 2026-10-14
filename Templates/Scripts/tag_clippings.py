@@ -700,6 +700,8 @@ def main():
     updated_count = 0
     skipped_count = 0
     deferred_count = 0
+    attempted_count = 0
+    error_count = 0
 
     for filepath in files_to_process:
         # Edit-safety: defer notes touched very recently — you're probably
@@ -723,6 +725,7 @@ def main():
             skipped_count += 1
             continue
 
+        attempted_count += 1
         try:
             changed = process_file(filepath, client, taxonomy_text, valid_tags_map, args.dry_run)
             if changed:
@@ -733,6 +736,7 @@ def main():
             else:
                 tracking[file_key] = file_hash
         except Exception as e:
+            error_count += 1
             print(f"  Error processing {filepath.name}: {e}")
 
     # Step 4: Save tracking
@@ -740,6 +744,14 @@ def main():
         save_tracking(tracking)
 
     print(f"\nDone! Updated: {updated_count} | Skipped (unchanged): {skipped_count} | Deferred (recent edit): {deferred_count} | Total: {len(files_to_process)}")
+
+    # Every note this run tried failed: say so with the exit code. A run where
+    # every call got a 401 used to exit 0, so the scheduler and the dashboard
+    # showed a pass while nothing was tagged (Windows, 2026-10-13). One bad
+    # note among good ones stays a 0: it is retried on the next run anyway.
+    if attempted_count and error_count == attempted_count:
+        print(f"Every note this run tried ({error_count}) failed; see the errors above.")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
