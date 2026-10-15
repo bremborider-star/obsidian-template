@@ -25,6 +25,8 @@ Setup:
     4. Run from the vault root: python3 Templates/Scripts/tag_clippings.py
 """
 
+from __future__ import annotations
+
 import os
 import sys
 import templater_guard  # noqa: E402

@@ -96,12 +96,15 @@ touching it. Full detail in [`docs/Demo-Content.md`](docs/Demo-Content.md).
   it -- the morning dashboard and both security controls (on purpose: they
   must work when the venv is broken), the meeting pull, prep and
   pre-population jobs, vault lint, strip-ads, the Claude auth check, group
-  photos, the ribbon-order installer step. So treat every `Templates/Scripts`
-  script as 3.9 code: no nested same-quote f-strings, no `match`, no runtime
-  `X | Y` (annotations are fine under `from __future__ import annotations`).
-  `test_platform_hardening.py` parses every script with `/usr/bin/python3` on
-  macOS; before deploying, import a changed module with the interpreter its
-  plist names. Windows uses python.org / winget python.
+  photos (which runs `Z_attachments/insert_group_placeholders.py` and
+  `refresh_groups.py`), the ribbon-order installer step. So treat every
+  script in `Templates/Scripts` and `Z_attachments` as 3.9 code: no nested
+  same-quote f-strings, no `match`, no runtime `X | Y` (in annotations only
+  under `from __future__ import annotations`). `test_platform_hardening.py`
+  parses both folders with `/usr/bin/python3` on macOS and fails an `X | Y`
+  annotation without that import, which parsing alone cannot catch; it does
+  not import the modules, so before deploying, import a changed module with
+  the interpreter its plist names. Windows uses python.org / winget python.
   Deps: `requirements.txt` says what is needed (ALL of it — `requests` is
   required by the RAG sync); `requirements.lock` is what installs — every
   package at a locked release with its SHA256, written by

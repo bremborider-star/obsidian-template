@@ -246,8 +246,11 @@ def test_every_script_parses_on_apples_python(allow_subprocess):
     """The dashboard and the security controls run on /usr/bin/python3 (3.9).
     A nested-quote f-string, legal only from 3.12, passed the whole suite on
     Homebrew 3.14 and broke the deployed dashboard; this parses every script
-    with the interpreter that actually runs them."""
-    scripts = sorted((REPO / "Templates" / "Scripts").glob("*.py"))
+    with the interpreter that actually runs them. The group-photos plist
+    runs two scripts from Z_attachments/ on it too."""
+    scripts = sorted([*(REPO / "Templates" / "Scripts").glob("*.py"),
+                      *(REPO / "Z_attachments").glob("*.py")])
+    assert len(scripts) > 2
     code = ("import ast, sys\n"
             "bad = []\n"
             "for f in sys.argv[1:]:\n"
@@ -259,6 +262,36 @@ def test_every_script_parses_on_apples_python(allow_subprocess):
     r = subprocess.run([str(APPLE_PY), "-c", code, *map(str, scripts)],
                        capture_output=True, text=True, timeout=120)
     assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_no_runtime_union_annotation_without_future_import():
+    """`def f() -> dict | None` parses on 3.9 but raises TypeError when the
+    module loads, so the parse test above cannot see it. tag_clippings.py
+    carried three such annotations unnoticed because its plist happens to
+    use the venv. A script with annotations must either avoid `X | Y` in
+    them or import annotations from __future__."""
+    import ast
+    bad = []
+    for f in sorted([*(REPO / "Templates" / "Scripts").glob("*.py"),
+                     *(REPO / "Z_attachments").glob("*.py")]):
+        tree = ast.parse(f.read_text(encoding="utf-8"))
+        if any(isinstance(n, ast.ImportFrom) and n.module == "__future__"
+               and any(a.name == "annotations" for a in n.names)
+               for n in tree.body):
+            continue
+        for n in ast.walk(tree):
+            anns = []
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                a = n.args
+                anns = [x.annotation for x in a.posonlyargs + a.args + a.kwonlyargs
+                        if x.annotation] + ([n.returns] if n.returns else [])
+            elif isinstance(n, ast.AnnAssign):
+                anns = [n.annotation]
+            for ann in anns:
+                if any(isinstance(x, ast.BinOp) and isinstance(x.op, ast.BitOr)
+                       for x in ast.walk(ann)):
+                    bad.append("%s:%d" % (f.relative_to(REPO), ann.lineno))
+    assert not bad, "runtime X | Y annotation, no __future__ import: " + ", ".join(bad)
 
 
 def test_a_windows_toast_starts_powershell_without_a_console(monkeypatch):
