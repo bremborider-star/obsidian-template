@@ -16,6 +16,7 @@
 #   20-secrets               prompt for the model endpoint key + Open WebUI
 #   30-plugins               fetch the 12 community plugins from GitHub
 #   31-quickadd-patch        suppress QuickAdd's current-folder topItem suggestion
+#   32-timestamp-ignores     keep update-time-on-edit off the tracked files
 #   35-ribbon-order          apply tracked ribbon icon order to workspace.json
 #   39-source-mail           signed mail drop transport (voice/podcast producers)
 #   40-tagger                semantic auto-tagger LaunchAgent

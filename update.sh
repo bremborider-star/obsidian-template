@@ -223,6 +223,9 @@ main() {
     # the drift check -- so a patch that failed once is retried here.
     if [[ "$DRY_RUN" -ne 1 ]]; then
         "$REPO_ROOT/install.sh" --auto --only 31-quickadd-patch || warn "  QuickAdd patch step failed"
+        # Every update too: a clone made before this step existed has no
+        # ignore list, and the plugin then stamps the docs this pull changed.
+        "$REPO_ROOT/install.sh" --auto --only 32-timestamp-ignores || warn "  timestamp-ignores step failed"
     fi
     retire_plugins "$VAULT" "${backup:-$HOME/Library/Logs/obsidian-template-update/$(date +%Y%m%d-%H%M%S)}" "$DRY_RUN"
 
@@ -280,7 +283,9 @@ report_control() {
             warn "      the diff:  git -C ~/Obsidian diff --name-status $from $to"
             warn "    Every file finding (scripts, templates, agent_config, script_config)"
             warn "    must be a file in that diff; venv findings fit only if requirements.lock"
-            warn "    is in it; plist findings must be jobs this update reloaded. A state_dir,"
+            warn "    is in it, or you rebuilt the venv with install.sh since the last baseline"
+            warn "    and .venv/bin/python -m pip check is clean; plist findings must be jobs"
+            warn "    this update reloaded. A state_dir,"
             warn "    secrets, PERMISSIONS or BULK_DELETE finding is NOT the update, except a"
             warn "    state_dir plugin_allowlist.json when you re-vetted plugins since. Plugin"
             warn "    findings must be plugins or settings files this update touched (the diff"

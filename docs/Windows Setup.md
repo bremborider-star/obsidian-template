@@ -49,8 +49,9 @@ then call scripts directly, e.g. `.\Templates\Scripts\windows\install.ps1`.)
 - Create a secrets stub at `%USERPROFILE%\dev\secrets\.env`
 - Fetch the 10 community plugins from their GitHub releases into
   `.obsidian\plugins\`
-- Patch QuickAdd's folder-picker fall-through and apply the canonical ribbon
-  icon order
+- Patch QuickAdd's folder-picker fall-through, set the timestamp plugin
+  (update-time-on-edit) to ignore the files the repository tracks, and apply
+  the canonical ribbon icon order
 - Create a per-vault Python venv and install `requirements.lock`: every
   package at a locked release, each file checked against its SHA256, wheels
   only (see `requirements.lock` in the README)
@@ -242,7 +243,9 @@ saying so. The update never adopts a new baseline
 itself. Its last lines print the commands that list the findings and the diff
 the update applied. Adopt the new state with `--update` only when every file
 finding (scripts, templates, `agent_config`, `script_config`) is a file in that
-diff, `venv` findings appear only if `requirements.lock` is in it, every task
+diff, `venv` findings appear only if `requirements.lock` is in it (or you
+rebuilt the venv with `install.ps1` since the last baseline and
+`.venv\Scripts\python.exe -m pip check` is clean), every task
 finding is an `\Obsidian\` task, and there is no `state_dir`, `secrets`,
 `PERMISSIONS` or `BULK_DELETE` finding. The one expected `state_dir` finding
 is `plugin_allowlist.json` after you re-vet plugins
@@ -620,6 +623,14 @@ x64 box that can offload to a discrete GPU.
   rather than risk corrupting the file (cosmetic only — QuickAdd still works,
   you may just see an extra folder picker in one flow). Both platforms share
   one implementation, `installers/lib/quickadd_patch.py`.
+- **The timestamp plugin's ignore list.** update-time-on-edit, with no
+  settings, writes `created:`/`updated:` into every note Obsidian sees change,
+  including `CLAUDE.md`, `README.md` and `docs\` after a pull, and the next
+  update then refuses over those local changes. `install.ps1` and every
+  `update.ps1` merge the tracked paths into its ignore list (shared helper
+  `installers/lib/timestamp_ignores.py`; your own entries are kept). Obsidian
+  must be closed for it to stick. A clone already stamped needs
+  `git checkout --` on the stamped files once.
 - **`Templates/Scripts/tests/`** — the security-controls pytest suite now
   runs on Windows. Last measured 2026-08-25 on Windows 11 ARM64 at commit
   `78536a2`: **573 passed, 4 skipped, 9 failed, 0 errors** of 586 collected,
@@ -653,7 +664,8 @@ x64 box that can offload to a discrete GPU.
   A `.venv` that got `pytest` from the instructions here before 2026-10-12
   carries packages no lock names (`update.ps1` lists them as "installed but not
   in requirements.lock"); delete `.venv` and re-run `install.ps1` to get one
-  that is exactly the lock.
+  that is exactly the lock. The rebuild shows as thousands of `venv` findings
+  on the next integrity check; adopt them once `pip check` is clean.
 
   `run_tests.sh` is the macOS runner (it builds the same `.venv-test` from the
   same lock); the invocation above is the Windows equivalent, and needs no `PYTHONPATH` —

@@ -149,9 +149,10 @@ change what is being proposed while it sits in the queue.
 Obsidian rewrites the frontmatter of any note an external process touches,
 within milliseconds. Two distinct effects, both from Obsidian:
 
-- The `update-time-on-edit` plugin bumps `updated:`. Its ignore list typically
-  covers only `Templates`, `Z_attachments` and `.obsidian`, so content folders
-  are exposed. A bulk pass with the app open stamps today's date on every note
+- The `update-time-on-edit` plugin bumps `updated:`. The installer sets its
+  ignore list to the files the repository tracks (`Templates`, `docs`,
+  `installers`, `.obsidian`, `Z_attachments` and the root documents; see
+  `installers/lib/timestamp_ignores.py`), so content folders are exposed. A bulk pass with the app open stamps today's date on every note
   it touches and flattens the recency signal that dashboards and
   stale-content queries read. It re-bumps faster than a script can write the
   old value back. The script re-asserts the original `updated:` in its own

@@ -340,6 +340,37 @@ function Invoke-QuickAddPatch {
     }
 }
 
+# Keep the update-time-on-edit plugin off the files the repository tracks
+# (install.ps1 step 32; installers/lib/timestamp_ignores.py, the same helper
+# macOS's 32-timestamp-ignores.sh calls). With no ignore list the plugin stamps
+# created:/updated: into CLAUDE.md, README.md and docs\ whenever a pull changes
+# them, and the next update refuses over those local changes (2026-10-15).
+# Obsidian must be closed, or the plugin writes its settings back over this.
+function Invoke-TimestampIgnores {
+    param([Parameter(Mandatory)][string]$Vault, [Parameter(Mandatory)][string[]]$Python)
+    $help = Join-Path $Vault 'installers\lib\timestamp_ignores.py'
+    if (-not (Test-Path $help)) {
+        Write-Warning "  timestamp-ignores helper not found at $help; skipping"
+        return
+    }
+    if (Get-Process -Name Obsidian -ErrorAction SilentlyContinue) {
+        Write-Warning '  Obsidian is running; update-time-on-edit ignore list not set. Quit Obsidian and re-run the update.'
+        return
+    }
+    $exe  = $Python[0]
+    $rest = @($Python | Select-Object -Skip 1)
+    $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+    try { $res = (& $exe @rest $help $Vault 2>&1 | Out-String).Trim() }
+    finally { $ErrorActionPreference = $prevEAP }
+    switch -Regex ($res) {
+        '^ADDED:(\d+)$' { Write-Host "  update-time-on-edit now ignores the tracked files ($($Matches[1]) path(s) added)" }
+        '^ALREADY$'     { Write-Host '  update-time-on-edit already ignores the tracked files' }
+        '^NO_PLUGIN$'   { Write-Host '  update-time-on-edit not installed; nothing to do' }
+        '^UNREADABLE$'  { Write-Warning '  update-time-on-edit data.json is not valid JSON; left as it is. Fix or delete it, then re-run.' }
+        default         { Write-Warning "  timestamp-ignores helper failed: $res" }
+    }
+}
+
 # Why the plugins need reinstalling from their pins, or $null when they do not:
 # the commits between $From and HEAD moved the pins (a same-version re-pin
 # included), or an enabled plugin's installed manifest is not the pinned one

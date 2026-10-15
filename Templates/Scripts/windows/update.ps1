@@ -117,6 +117,9 @@ if ($pluginReason) {
 # brings back the unpatched bundle, and QuickAdd's patched main.js is exempt
 # from the drift check -- so a patch that failed once is retried here.
 Invoke-QuickAddPatch -Vault $vault -Python @($venvPy)
+# And the timestamp plugin's ignore list, so this pull's docs are not stamped:
+# a clone made before the step existed has none.
+Invoke-TimestampIgnores -Vault $vault -Python @($venvPy)
 
 # Plugins the template has retired: disabled by the pull, removed here --
 # before the task step, whose failure ends this script.
@@ -185,7 +188,9 @@ if ($status -eq 'ok') {
     # vault's CLAUDE.md (agent_config), and a rule naming only scripts and
     # tasks left those to guesswork (a Windows update, 2026-10-12).
     Write-Host '  Every file finding (scripts, templates, agent_config, script_config) must be a'
-    Write-Host '  file in that diff. venv findings fit only if requirements.lock is in the diff.'
+    Write-Host '  file in that diff. venv findings fit only if requirements.lock is in the diff,'
+    Write-Host '  or if you rebuilt the venv with install.ps1 since the last baseline and'
+    Write-Host '  `.venv\Scripts\python.exe -m pip check` is clean.'
     Write-Host '  Task findings must be \Obsidian\ tasks. Any state_dir, secrets, PERMISSIONS or'
     Write-Host '  BULK_DELETE finding is NOT the update -- except state_dir plugin_allowlist.json'
     Write-Host '  if you re-vetted plugins (plugin_integrity_check.py --update) since the last'

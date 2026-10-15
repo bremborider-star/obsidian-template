@@ -332,6 +332,10 @@ Write-Host '== 31 quickadd patch =='
 # allowedRoots) that two implementations would inevitably drift.
 Invoke-QuickAddPatch -Vault $vault -Python (@($base[0]) + @(Get-CandPrefix $base))
 
+Write-Host '== 32 timestamp ignores =='
+# Keep update-time-on-edit from stamping the tracked docs (see common.ps1).
+Invoke-TimestampIgnores -Vault $vault -Python (@($base[0]) + @(Get-CandPrefix $base))
+
 Write-Host '== 40 venv + deps =='
 # CTranslate2 (faster-whisper, for podcast transcription) links against the MSVC
 # runtime; without it the .dll fails to load. Ensure it's present. Idempotent --

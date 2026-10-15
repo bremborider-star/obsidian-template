@@ -41,6 +41,11 @@ installers/lib/hooks/pre-push text eol=lf
 # laptop (2026-10-03) -- and update.ps1 then refused over "local changes".
 .obsidian/**/*.json text eol=lf
 
+# LF: Obsidian Bases files, for the same reason. Obsidian re-saves a .base
+# with LF, so a CRLF checkout of Templates/Bases/Notes.base showed as modified
+# on the Windows test laptop (2026-10-15) with only its line endings changed.
+*.base          text eol=lf
+
 # CRLF: the Windows PowerShell layer, which is Windows-only by definition.
 # Note this is about line endings only -- the same files are also held
 # ASCII-only, for a different reason, by

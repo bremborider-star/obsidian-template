@@ -352,6 +352,7 @@ def test_a_plugin_reinstall_always_patches_and_retires_and_a_failure_ends_incomp
     out = r.stdout + r.stderr
     log = [ln for ln in calls.read_text().splitlines() if ln.startswith("install.sh")]
     assert log == ["install.sh --auto --only 30-plugins", "install.sh --auto --only 31-quickadd-patch",
+                   "install.sh --auto --only 32-timestamp-ignores",
                    "install.sh --auto --only 56-script-permissions"], log
     assert not retired.exists(), "the retired plugin stayed in the vault"
     assert "== 6/6 security controls ==" in out
@@ -391,4 +392,5 @@ def test_the_quickadd_patch_runs_on_every_update(scratch, tmp_path, allow_subpro
     assert "every plugin is at its pin" in out
     log = [ln for ln in calls.read_text().splitlines() if ln.startswith("install.sh")]
     assert log == ["install.sh --auto --only 31-quickadd-patch",
+                   "install.sh --auto --only 32-timestamp-ignores",
                    "install.sh --auto --only 56-script-permissions"], log

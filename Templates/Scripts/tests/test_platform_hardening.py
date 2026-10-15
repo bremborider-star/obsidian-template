@@ -288,3 +288,88 @@ def test_the_adopt_rule_allows_the_allowlist_after_a_revet():
     for text in ((WIN / "update.ps1").read_text(encoding="utf-8"),
                  (REPO / "update.sh").read_text(encoding="utf-8")):
         assert "plugin_allowlist.json" in text and "re-vetted plugins" in text
+
+
+# ---------------------------------------------------------------------------
+# The timestamp plugin stamped tracked docs; a .base checked out CRLF
+# (Windows, 2026-10-15)
+# ---------------------------------------------------------------------------
+
+def _timestamp_ignores():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "timestamp_ignores", REPO / "installers" / "lib" / "timestamp_ignores.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _plugin_dir(vault: Path) -> Path:
+    d = vault / ".obsidian" / "plugins" / "update-time-on-edit"
+    d.mkdir(parents=True)
+    return d
+
+
+def test_every_tracked_note_is_on_the_timestamp_ignore_list(allow_subprocess) -> None:
+    """update-time-on-edit stamps any Markdown file Obsidian sees change; a
+    tracked one then shows as a local change and update.ps1 refuses."""
+    ti = _timestamp_ignores()
+    tracked = subprocess.run(["git", "-C", str(REPO), "ls-files", "-z", "*.md"], check=True,
+                             capture_output=True, text=True).stdout.split("\0")
+    exposed = [t for t in tracked if t and not any(t.startswith(p) for p in ti.TRACKED)]
+    assert exposed == []
+
+
+def test_the_ignore_merge_keeps_the_users_settings(tmp_path) -> None:
+    import json
+    ti = _timestamp_ignores()
+    d = _plugin_dir(tmp_path)
+    (d / "data.json").write_text(json.dumps({"ignoreGlobalFolder": ["Templates", "Private"],
+                                             "dateFormat": "yyyy", "fileHashMap": {"a.md": "x"}}))
+    assert ti.main([str(tmp_path)]) == "ADDED:%d" % (len(ti.TRACKED) - 1)
+    got = json.loads((d / "data.json").read_text())
+    assert got["ignoreGlobalFolder"][:2] == ["Templates", "Private"]
+    assert set(ti.TRACKED) <= set(got["ignoreGlobalFolder"])
+    assert got["dateFormat"] == "yyyy" and got["fileHashMap"] == {"a.md": "x"}
+    assert b"\r\n" not in (d / "data.json").read_bytes()
+    assert ti.main([str(tmp_path)]) == "ALREADY"
+    assert not (d / "data.json.tmp").exists()
+
+
+def test_the_ignore_merge_handles_a_missing_or_old_settings_file(tmp_path) -> None:
+    import json
+    ti = _timestamp_ignores()
+    assert ti.main([str(tmp_path)]) == "NO_PLUGIN"
+    d = _plugin_dir(tmp_path)
+    assert ti.main([str(tmp_path)]) == "ADDED:%d" % len(ti.TRACKED)
+    assert json.loads((d / "data.json").read_text()) == {"ignoreGlobalFolder": ti.TRACKED}
+    (d / "data.json").write_text(json.dumps({"ignoreGlobalFolder": "Templates"}))
+    assert ti.main([str(tmp_path)]).startswith("ADDED:")
+    assert json.loads((d / "data.json").read_text())["ignoreGlobalFolder"][0] == "Templates"
+    (d / "data.json").write_text("{not json")
+    assert ti.main([str(tmp_path)]) == "UNREADABLE"
+    assert (d / "data.json").read_text() == "{not json"
+
+
+def test_install_and_every_update_set_the_timestamp_ignores() -> None:
+    common = (WIN / "common.ps1").read_text(encoding="utf-8")
+    assert "function Invoke-TimestampIgnores" in common
+    assert "'installers\\lib\\timestamp_ignores.py'" in common
+    for caller in ("install.ps1", "update.ps1"):
+        assert "Invoke-TimestampIgnores -Vault $vault -Python" in (WIN / caller).read_text(encoding="utf-8")
+    assert "--only 32-timestamp-ignores" in (REPO / "update.sh").read_text(encoding="utf-8")
+    comp = REPO / "installers" / "components" / "32-timestamp-ignores.sh"
+    assert os.access(comp, os.X_OK) and "timestamp_ignores.py" in comp.read_text(encoding="utf-8")
+
+
+def test_bases_files_check_out_with_lf(allow_subprocess) -> None:
+    out = subprocess.run(["git", "-C", str(REPO), "check-attr", "eol", "--",
+                          "Templates/Bases/Notes.base"], check=True,
+                         capture_output=True, text=True).stdout
+    assert out.strip().endswith("eol: lf"), out
+
+
+def test_the_adopt_rule_allows_a_deliberate_venv_rebuild():
+    for text in ((WIN / "update.ps1").read_text(encoding="utf-8"),
+                 (REPO / "update.sh").read_text(encoding="utf-8")):
+        assert "rebuilt the venv" in text and "pip check" in text

@@ -319,6 +319,8 @@ def _index_vault() -> VaultIndex:
 
 
 _MD_ESCAPABLE = re.compile(r"\\([!-/:-@\[-`{-~])")
+# The characters _md_destinations' destination scan acts on.
+_DEST_STOP_RE = re.compile(r"[\\ \t\n()]")
 
 
 _MAX_DEST = 4096
@@ -375,6 +377,14 @@ def _md_destinations(text: str) -> list[str]:
             else:
                 k, par = j, 0
                 while k < lim:
+                    # Jump to the next character the scan reacts to; every
+                    # other one only advanced k, one Python step at a time
+                    # (5,000 unclosed images: ~20M steps, 5 s under coverage).
+                    stop = _DEST_STOP_RE.search(text, k, lim)
+                    if stop is None:
+                        k = lim
+                        break
+                    k = stop.start()
                     c = text[k]
                     if c == "\\":
                         k += 2
