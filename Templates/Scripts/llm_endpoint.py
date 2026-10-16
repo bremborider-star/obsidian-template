@@ -224,7 +224,7 @@ def client(**kwargs):
 
 # --- Gateway model names ------------------------------------------------------
 #
-# A gateway names models its own way. The Hopkins LiteLLM gateway serves
+# A gateway names models its own way. One LiteLLM gateway, for example, serves
 # "claude-haiku-4.5" and "claude-sonnet-5.5" where Anthropic's ids are
 # "claude-haiku-4-5-20251001" and "claude-sonnet-5-5", and rejects the
 # stock spelling with a 400. Every default in this vault is Anthropic's id, so

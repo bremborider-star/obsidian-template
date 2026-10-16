@@ -6,6 +6,8 @@ A customized Obsidian vault template designed for technology leaders who manage 
 
 > A printable PDF version is at [`docs/second-brain-workflow.pdf`](docs/second-brain-workflow.pdf), and the editable source is [`docs/second-brain-workflow.svg`](docs/second-brain-workflow.svg).
 
+**New here?** Read the [Overview](docs/Overview.md) for what it does and what it takes, the [Technical overview](docs/Technical-Overview.md) for how it fits together, and the [Security overview](docs/Security-Overview.md) for every protection and its limits.
+
 ## Built On
 
 This template extends the [Kepano starter vault](https://github.com/kepano/obsidian-starter) with significant customizations for a leadership workflow.

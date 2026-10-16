@@ -168,7 +168,7 @@ class FakeWebUI:
 # Fixture.
 # ---------------------------------------------------------------------------
 
-BODY = "Hopkins IT strategy discussion. " * 10   # clears MIN_BODY_CHARS
+BODY = "Nimbus IT strategy discussion. " * 10   # clears MIN_BODY_CHARS
 
 
 @pytest.fixture
