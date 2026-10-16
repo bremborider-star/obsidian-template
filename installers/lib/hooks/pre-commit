@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # pre-commit — classification audit gate for the obsidian-template repo.
 #
-# Refuses any commit that introduces or modifies a .md file in a user-
-# content folder (Knowledge/, Meetings/, People/, etc.) without
-# `classification: public` in its YAML frontmatter.
+# Refuses any commit that introduces or modifies a .md file outside the
+# template's own folders (docs/, installers/, Templates/ and the like) without
+# `classification: public` in its YAML frontmatter; see
+# installers/lib/check_classification.py for the exact scope.
 #
 # To bypass for a single commit (audit override):
 #     git commit --no-verify

@@ -144,8 +144,10 @@
     <key>RunAtLoad</key>
     <false/>
 
-    <!-- A wedged CLI session (network hang, expired auth) must not sit around
-         holding a slot; well beyond the ~1 minute a real run takes. -->
+    <!-- ExitTimeOut is only how long launchd waits between SIGTERM and
+         SIGKILL when it stops the job; launchd sets no limit on run time. A
+         wedged session is bounded in meeting_pull.py instead (600 s per CLI
+         attempt, MEETING_PULL_TIMEOUT). -->
     <key>ExitTimeOut</key>
     <integer>900</integer>
 

@@ -18,8 +18,9 @@ are skipped entirely.
 The auto-block carries an internal HTML-comment marker indicating which pass
 generated it, which is how the pre-meeting pass knows whether it already ran.
 
-See ~/Obsidian/Knowledge/Meeting Prep Auto-Insert Pipeline.md for manual-run
-examples, security properties, and full configuration reference.
+Run with --help for the options. docs/Technical-Overview.md lists the job's
+schedule on both platforms, and docs/Meeting-Pre-Population.md covers the
+meeting notes it reads.
 """
 from __future__ import annotations
 

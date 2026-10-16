@@ -14,7 +14,7 @@
 #   05-obsidian-app          install Obsidian.app via Homebrew cask
 #   10-vault-bootstrap       vault folder skeleton (only fills missing dirs)
 #   20-secrets               prompt for the model endpoint key + Open WebUI
-#   30-plugins               fetch the 12 community plugins from GitHub
+#   30-plugins               fetch the pinned community plugins from GitHub
 #   31-quickadd-patch        suppress QuickAdd's current-folder topItem suggestion
 #   32-timestamp-ignores     keep update-time-on-edit off the tracked files
 #   35-ribbon-order          apply tracked ribbon icon order to workspace.json

@@ -3,7 +3,7 @@
 <!--
   Claude CLI auth warm-and-check LaunchAgent - OPT-IN
 
-  Runs Templates/Scripts/claude_auth_check.py on weekday evenings. One trivial
+  Runs Templates/Scripts/claude_auth_check.py at 21:00, Sunday to Friday. One trivial
   `claude -p` request both refreshes the stored session and establishes whether
   it still works, at an hour when a human can act on the answer.
 
@@ -66,8 +66,9 @@
     <key>RunAtLoad</key>
     <false/>
 
-    <!-- A wedged CLI must not hold a slot; the script's own probe timeout is
-         120s, so this is well clear of a healthy run. -->
+    <!-- ExitTimeOut is only how long launchd waits between SIGTERM and
+         SIGKILL when it stops the job; launchd sets no limit on run time.
+         The run is bounded by the script's own 120 s probe timeout. -->
     <key>ExitTimeOut</key>
     <integer>300</integer>
 

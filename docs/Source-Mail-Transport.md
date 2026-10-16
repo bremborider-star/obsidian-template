@@ -55,7 +55,9 @@ Defences, layered so no single failure is fatal:
    it.
 4. **The routing type comes from inside the MAC**, never from the Subject line,
    so an authentic podcast drop can't be retargeted at the voice pipeline.
-5. **A timestamp inside the MAC** bounds replay to 7 days.
+5. **A timestamp inside the MAC** bounds a drop's age to 7 days, and one more
+   than 5 minutes in the future is refused. Within that window, a cache of
+   accepted digests refuses a replay outright.
 6. **Filenames are generated locally**, never taken from the message, so path
    traversal is impossible by construction rather than by filtering.
 7. **`text/plain` only**, size-capped. HTML parts are ignored outright rather

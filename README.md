@@ -68,7 +68,7 @@ cd ~/Obsidian && ./install.sh
 - Install 13 LaunchAgents (tagger, voice-cleanup, source-mail-pull, strip-ads, podcast-watch, meeting-prep, two security agents, RAG sync, group-photos, morning-dashboard, vault-lint, nightly classifier) and build the Markitdown Dropper.app — the two meeting-pipeline agents are separate opt-ins
 - Apply the canonical ribbon icon order to `workspace.json`
 - Pull a local 8B LLM model via Ollama and start an Open WebUI container at <http://localhost:3000>
-- Print a final 20-row status table
+- Print a final status table
 
 When it finishes, three one-time manual steps:
 

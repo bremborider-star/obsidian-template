@@ -7,7 +7,8 @@
 #   2. requirements           the same pip step 10-vault-bootstrap runs
 #   3. scheduled jobs         re-render and reload the LaunchAgents THIS machine
 #                             already has, where the template changed
-#   4. plugins                reinstall the pinned plugins, only if the pins moved
+#   4. plugins                reinstall the pinned plugins if the pins moved or an
+#                             installed plugin no longer matches its pin
 #   5. script permissions     re-tighten mode bits on Templates/Scripts
 #   6. security controls      report their status; never adopt a baseline
 #
