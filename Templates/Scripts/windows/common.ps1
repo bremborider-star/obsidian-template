@@ -467,6 +467,53 @@ function Repair-OpenWebUIBinding {
     return $true
 }
 
+# Ollama's API has no authentication: anyone who can reach port 11434 can run,
+# pull and delete models. It listens on 127.0.0.1 unless OLLAMA_HOST says
+# otherwise, and the open-webui container reaches it there: Docker Desktop
+# routes host.docker.internal (host-gateway) to the host's loopback. Until
+# 2026-10-16 setup-rag.ps1 suggested OLLAMA_HOST=0.0.0.0 when the container
+# could not reach Ollama, which publishes that API on every interface. These
+# check and warn; they never change the user's settings.
+
+# The local addresses something is listening on at port 11434.
+function Get-OllamaListenAddresses {
+    try {
+        return @(Get-NetTCPConnection -LocalPort 11434 -State Listen -ErrorAction Stop |
+                 ForEach-Object { "$($_.LocalAddress)" } | Sort-Object -Unique)
+    } catch { return @() }
+}
+
+# Warn when Ollama listens beyond loopback, or when an OLLAMA_HOST variable
+# would make it. Returns $true when either is the case.
+function Test-OllamaExposure {
+    $exposed = @(Get-OllamaListenAddresses | Where-Object { $_ -notin @('127.0.0.1', '::1') })
+    $wide = @(foreach ($scope in 'User', 'Machine') {
+        $v = [Environment]::GetEnvironmentVariable('OLLAMA_HOST', $scope)
+        if ($v -and $v -notmatch '^(https?://)?(127\.0\.0\.1|localhost|\[::1\])(:\d+)?/?$') {
+            "$v ($scope)"
+        }
+    })
+    if ($exposed.Count -eq 0 -and $wide.Count -eq 0) { return $false }
+    if ($exposed.Count) {
+        Write-Warning ("  Port 11434 (Ollama) is listening beyond this machine ({0})." -f ($exposed -join ', '))
+    }
+    if ($wide.Count) { Write-Warning ("  OLLAMA_HOST is set to {0}." -f ($wide -join ', ')) }
+    Write-Warning '  Ollama''s API has no authentication: anyone on your network could run, pull'
+    Write-Warning '  and delete models. Remove the variable and restart Ollama:'
+    Write-Warning "    [Environment]::SetEnvironmentVariable('OLLAMA_HOST', `$null, 'User')"
+    return $true
+}
+
+# Whether the open-webui container reaches Ollama through host.docker.internal.
+function Test-OpenWebUIReachesOllama {
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $out = docker exec open-webui python3 -c "import urllib.request; urllib.request.urlopen('http://host.docker.internal:11434/api/version', timeout=5); print('reachable')" 2>$null
+    } finally { $ErrorActionPreference = $prevEAP }
+    return ($LASTEXITCODE -eq 0 -and "$out" -match 'reachable')
+}
+
 # True if the WSL2 platform is already present, even with zero distros
 # installed -- Docker Desktop only needs its own lightweight utility VMs on
 # top of that, no `wsl --install` / reboot required in that case.

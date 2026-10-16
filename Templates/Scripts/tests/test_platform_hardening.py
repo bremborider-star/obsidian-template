@@ -64,6 +64,30 @@ def test_windows_checks_an_existing_container_on_setup_and_update() -> None:
     assert "Repair-OpenWebUIBinding" in (WIN / "update.ps1").read_text(encoding="utf-8")
 
 
+def test_nothing_advises_widening_ollama() -> None:
+    """Ollama's API is unauthenticated. setup-rag.ps1 once told users to set
+    OLLAMA_HOST=0.0.0.0 when the container could not reach it; any line that
+    names that value now has to be warning against it."""
+    offenders = []
+    for p in _shipped_text_files():
+        for line in p.read_text(encoding="utf-8", errors="replace").splitlines():
+            if "OLLAMA_HOST=0.0.0.0" in line and not re.search(
+                    r"Do not set|do not set|suggested|#", line):
+                offenders.append(f"{p.relative_to(REPO)}: {line.strip()}")
+    assert not offenders, offenders
+
+
+def test_windows_checks_ollama_on_setup_and_update() -> None:
+    common = (WIN / "common.ps1").read_text(encoding="utf-8")
+    assert "function Test-OllamaExposure" in common
+    assert "Get-NetTCPConnection -LocalPort 11434 -State Listen" in common
+    assert "GetEnvironmentVariable('OLLAMA_HOST'" in common
+    assert "function Test-OpenWebUIReachesOllama" in common
+    setup = (WIN / "setup-rag.ps1").read_text(encoding="utf-8")
+    assert "Test-OllamaExposure" in setup and "Test-OpenWebUIReachesOllama" in setup
+    assert "Test-OllamaExposure" in (WIN / "update.ps1").read_text(encoding="utf-8")
+
+
 def test_macos_checks_an_existing_container_too() -> None:
     comp = (REPO / "installers" / "components" / "50-llm-rag.sh").read_text(encoding="utf-8")
     assert "docker port open-webui 8080" in comp

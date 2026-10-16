@@ -262,7 +262,10 @@ ignores environment proxies, caps bodies and sets a wall-clock deadline.
 `yt-dlp` makes its own requests outside this module, so it is held to
 YouTube hosts and extractors; the caption fetch goes through `safe_fetch`.
 
-The local RAG stack listens on loopback. Ollama listens on `127.0.0.1:11434`.
+The local RAG stack listens on loopback. Ollama listens on `127.0.0.1:11434`;
+on Windows, `setup-rag.ps1` confirms the container reaches it there, and
+setup and `update.ps1` warn if Ollama listens beyond the machine or an
+`OLLAMA_HOST` variable would widen it.
 Open WebUI, which can hold the entire vault as a collection, is published as
 `127.0.0.1:3000:8080`; the macOS and Windows installers and `update.ps1`
 check an existing container's binding with `docker port` and recreate it on
@@ -388,9 +391,9 @@ a push.
   wrong.
 - **The RAG stack is not pinned.** The Open WebUI image is pulled by its
   `main` tag and Ollama models by name, not by digest, and neither is covered
-  by the integrity monitor. On Windows the RAG setup suggests setting
-  `OLLAMA_HOST=0.0.0.0` if the container cannot reach Ollama, which listens on
-  every interface; a host firewall should then keep port 11434 local.
+  by the integrity monitor. Ollama's own API has no authentication; it is
+  bound to loopback, and on Windows setup and every update warn if it listens
+  beyond the machine, but nothing stops a user who widens it deliberately.
 - **Hooks can be bypassed.** `--no-verify` skips both hooks. The recipient-side
   classification audit at install, and the push gates that read every pushed
   commit, are the backstops.

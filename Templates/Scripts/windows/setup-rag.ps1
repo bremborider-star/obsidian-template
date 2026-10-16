@@ -222,5 +222,15 @@ if ($alreadyConfigured) {
     Write-Host "  5. Enable-ScheduledTask -TaskName rag-sync -TaskPath '\Obsidian\'"
 }
 Write-Host ''
-Write-Host 'If Open WebUI cannot reach Ollama, set a user env var OLLAMA_HOST=0.0.0.0'
-Write-Host 'and restart Ollama so the container can reach it via host.docker.internal.'
+# Ollama stays on loopback (see Test-OllamaExposure in common.ps1). Check the
+# container reaches it there, and that nothing has widened it.
+Write-Host '== Ollama binding =='
+if (-not (Test-OllamaExposure)) { Write-Host '  Ollama is not listening beyond this machine.' }
+if (Test-OpenWebUIReachesOllama) {
+    Write-Host '  Open WebUI reaches Ollama on this machine (via host.docker.internal).'
+} else {
+    Write-Warning '  Open WebUI cannot reach Ollama yet. Check that Ollama is running'
+    Write-Warning '  (ollama list), then: docker restart open-webui'
+    Write-Warning '  Do not set OLLAMA_HOST=0.0.0.0 to fix this: it publishes Ollama''s'
+    Write-Warning '  unauthenticated API to your whole network. See docs/Windows Setup.md.'
+}

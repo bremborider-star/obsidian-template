@@ -160,6 +160,12 @@ if (Get-Command docker -ErrorAction SilentlyContinue) {
     }
 }
 
+# Ollama's API is unauthenticated; an older setup-rag.ps1 suggested widening it.
+if (Get-Command ollama -ErrorAction SilentlyContinue) {
+    Write-Host '== Ollama binding =='
+    if (-not (Test-OllamaExposure)) { Write-Host '  Not listening beyond this machine.' }
+}
+
 $to = (Invoke-Native -ErrorMessage 'git rev-parse failed' { git -C $vault rev-parse --short HEAD }).Trim()
 
 # Report only. Adopting a new baseline is a decision for the person reading

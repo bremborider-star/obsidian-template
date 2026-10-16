@@ -427,6 +427,17 @@ retrieval-augmented-generation stack — nothing leaves the machine:
 3. **Open WebUI**, the official Docker image, on `http://localhost:3000`,
    pointed at the host's Ollama.
 
+Ollama stays on `127.0.0.1:11434`: Docker Desktop routes the container's
+`host.docker.internal` to this machine's loopback, so nothing needs widening.
+`setup-rag.ps1` checks that the container reaches Ollama there, and both it and
+`update.ps1` warn if Ollama is listening beyond this machine or an
+`OLLAMA_HOST` variable would make it. Do not set `OLLAMA_HOST=0.0.0.0`: Ollama's
+API has no authentication, so anyone on your network could run, pull and delete
+models. Before 2026-10-16 `setup-rag.ps1` suggested it when the container could
+not reach Ollama; if you followed that advice, remove the variable
+(`[Environment]::SetEnvironmentVariable('OLLAMA_HOST', $null, 'User')`) and
+restart Ollama.
+
 One-time manual setup at `http://localhost:3000` (an interactive admin
 signup can't be scripted):
 
