@@ -283,7 +283,9 @@ def test_no_runtime_union_annotation_without_future_import():
             anns = []
             if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 a = n.args
-                anns = [x.annotation for x in a.posonlyargs + a.args + a.kwonlyargs
+                params = a.posonlyargs + a.args + a.kwonlyargs + [
+                    x for x in (a.vararg, a.kwarg) if x is not None]
+                anns = [x.annotation for x in params
                         if x.annotation] + ([n.returns] if n.returns else [])
             elif isinstance(n, ast.AnnAssign):
                 anns = [n.annotation]
