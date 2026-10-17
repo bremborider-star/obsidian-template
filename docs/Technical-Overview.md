@@ -307,8 +307,8 @@ What leaves the machine, and where it goes:
 
 | Data | Path | Destination |
 |---|---|---|
-| Note bodies for tagging (capped at 4,000 characters) | `tag_clippings.py` | model endpoint |
-| Note text a detector cannot decide | `classify_notes.py` | model endpoint |
+| Note bodies for tagging (capped at 4,000 characters), restricted notes withheld unless `LLM_ALLOW_RESTRICTED=1` on a gateway | `tag_clippings.py` | model endpoint |
+| Note text a detector cannot decide, never a note already restricted | `classify_notes.py` | model endpoint |
 | Dictation text, YouTube captions | `voice_cleanup.py`, `youtube_summarize.py` | model endpoint |
 | Calendar events | connector, read inside a Claude Code session | Anthropic; the transform runs locally |
 | Phone captures | signed, not encrypted, plain-text email | your mail provider, then IMAP to the machine |

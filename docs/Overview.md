@@ -66,7 +66,7 @@ flowchart LR
 
 - **Obsidian**, which is free, on an Apple Silicon Mac or a Windows PC.
 - **A guided installer** that sets up the folders, add-ons and background helpers and asks you to confirm each step. Many features are optional and can be left out.
-- **An AI service for the assisted features.** Tagging, dictation cleanup, video summaries and sensitivity suggestions send the text of the note being processed to a cloud AI service. That is either Anthropic, using your own API key, or your institution's AI gateway if it runs one. Keep this in mind for anything you would not want leaving your computer.
+- **An AI service for the assisted features.** Tagging, dictation cleanup, video summaries and sensitivity suggestions send the text of the note being processed to a cloud AI service. That is either Anthropic, using your own API key, or your institution's AI gateway if it runs one. Notes marked restricted, the highest sensitivity level, are held back unless you are using an institutional gateway whose agreement covers them and you choose to allow it. Keep this in mind for anything you would not want leaving your computer.
 - **Local-only options.** The private chat over your notes and the podcast transcription run on your own machine and send nothing out. The chat needs a capable computer with plenty of memory.
 - **A dedicated email inbox** if you want to send dictation or podcasts from your phone, since that is how phone captures travel to your computer.
 - **Obsidian Sync** (a paid subscription) if you want your notes on your phone and tablet. It keeps them end-to-end encrypted across your devices.

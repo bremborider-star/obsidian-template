@@ -190,3 +190,60 @@ def test_every_note_failing_exits_1(tagger, monkeypatch, tmp_path, capsys):
 def test_one_bad_note_among_good_ones_still_exits_0(tagger, monkeypatch, tmp_path):
     main = _run_main(tagger, monkeypatch, tmp_path, [True, RuntimeError("bad note"), False])
     assert main() is None
+
+
+# ---------------------------------------------------------------------------
+# Restricted notes stay off the model endpoint unless a gateway is allowed
+# (2026-10-17)
+# ---------------------------------------------------------------------------
+
+RESTRICTED = "---\ntitle: R\nclassification: restricted\n---\n" + "x " * 60 + "\n"
+UNREADABLE = "---\ntitle: U\nclassification: secret-ish\n---\n" + "x " * 60 + "\n"
+PLAIN = "---\ntitle: P\nclassification: internal-use-only\n---\n" + "x " * 60 + "\n"
+
+
+def _tag_run(tagger, monkeypatch, tmp_path, notes):
+    vault = tmp_path / "vault"
+    (vault / "Clippings").mkdir(parents=True)
+    for name, text in notes.items():
+        (vault / "Clippings" / name).write_text(text, encoding="utf-8")
+    import llm_endpoint
+    monkeypatch.setattr(llm_endpoint, "client", lambda **kw: object())
+    sent = []
+    monkeypatch.setattr(tagger, "process_file", lambda fp, *a, **k: sent.append(fp.name) or False)
+    monkeypatch.setattr(tagger, "RECENT_EDIT_GUARD_SECONDS", 0)
+    monkeypatch.setattr(sys, "argv", ["tag_clippings.py", "--vault", str(vault)])
+    tagger.main()
+    return sorted(sent)
+
+
+NOTES = {"r.md": RESTRICTED, "u.md": UNREADABLE, "p.md": PLAIN}
+
+
+def test_restricted_and_unreadable_notes_are_withheld_by_default(tagger, monkeypatch, tmp_path, capsys):
+    monkeypatch.delenv("LLM_ALLOW_RESTRICTED", raising=False)
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
+    assert _tag_run(tagger, monkeypatch, tmp_path, NOTES) == ["p.md"]
+    assert "Withheld (restricted): 2" in capsys.readouterr().out
+
+
+def test_the_setting_alone_does_not_send_them_to_stock_anthropic(tagger, monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("LLM_ALLOW_RESTRICTED", "1")
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
+    assert _tag_run(tagger, monkeypatch, tmp_path, NOTES) == ["p.md"]
+    assert "no gateway (LLM_BASE_URL) is configured" in capsys.readouterr().err
+
+
+def test_an_allowed_gateway_receives_them(tagger, monkeypatch, tmp_path):
+    monkeypatch.setenv("LLM_ALLOW_RESTRICTED", "1")
+    monkeypatch.setenv("LLM_BASE_URL", "https://api.ai.example.edu")
+    monkeypatch.setenv("LLM_SKIP_PREFLIGHT", "1")
+    assert _tag_run(tagger, monkeypatch, tmp_path, NOTES) == ["p.md", "r.md", "u.md"]
+
+
+def test_rag_tagger_withholds_a_restricted_note(rag_tagger, monkeypatch, tmp_path, capsys):
+    monkeypatch.delenv("LLM_ALLOW_RESTRICTED", raising=False)
+    p = tmp_path / "r.md"
+    p.write_text(RESTRICTED, encoding="utf-8")
+    assert rag_tagger.process(p, None, [], None, False, False, 3) is None
+    assert "withheld (restricted)" in capsys.readouterr().out

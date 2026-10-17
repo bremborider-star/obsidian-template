@@ -300,6 +300,16 @@ if ($prof) {
             $ov = Get-ProfileRaw $prof $opt
             if ($ov) { Set-EnvValue -Key $opt -Value $ov -Path $secrets -Force:$Force }
         }
+        # Notes classified restricted are withheld from the model endpoint
+        # unless the institution's agreement for this gateway covers them.
+        # Mirrors 20-secrets.sh, which also asks; here only a profile answers.
+        $allowRestricted = Get-ProfileRaw $prof 'LLM_ALLOW_RESTRICTED'
+        if ($allowRestricted) {
+            Set-EnvValue -Key 'LLM_ALLOW_RESTRICTED' -Value $allowRestricted -Path $secrets -Force:$Force
+        } else {
+            Write-Host '  restricted notes are withheld from the gateway; to send them, set'
+            Write-Host '  LLM_ALLOW_RESTRICTED=1 in the profile or in .env'
+        }
     } else {
         Write-Host '  profile sets no gateway; stock api.anthropic.com auth applies'
     }

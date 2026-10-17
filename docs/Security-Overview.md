@@ -390,8 +390,12 @@ a push.
 - **No real-time egress filtering.** Nothing here blocks outbound
   connections. Jobs send note text to the configured model endpoint (the
   tagger sends bodies from `Clippings/`, `Creations/` and `Meetings/`; the
-  classifier sends bodies to judge them), and those calls are not gated by
-  tier. An outbound firewall is the operator's choice.
+  classifier sends bodies to judge them). The only tier rule on those calls is
+  that a `restricted` note, or one whose tier cannot be read, is withheld:
+  always by the classifier, and by the taggers unless `LLM_ALLOW_RESTRICTED=1`
+  is set on an institutional gateway. Everything below restricted goes, and
+  dictation and captions carry no tier at all. An outbound firewall is the
+  operator's choice.
 - **The ingest guard covers writers, not the app.** It protects text the
   scripts write. A note a person pastes, or a clipping in the window before
   `strip_ads`, is not neutralized, and the guard's other limits are listed

@@ -666,6 +666,11 @@ def process_file(filepath: Path, client, dry_run: bool,
         return None
 
     # Past this point every path costs a model call, so the skips apply here.
+    # Nothing ranks above restricted, so a model call could only ever be
+    # dropped as a non-elevation, and it would send the note out to decide
+    # nothing. Not even --force sends one.
+    if cur == "restricted":
+        return None
     if fm.get("classification_reviewed") is True and not force:
         return None
 

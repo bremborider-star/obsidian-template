@@ -37,6 +37,21 @@ if [[ -n "${LLM_BASE_URL:-}" ]]; then
         opt_val="${!opt:-}"
         [[ -n "$opt_val" ]] && env_set "$opt" "$opt_val"
     done
+    # Notes classified restricted (credentials, identifiers, health records)
+    # are withheld from the model endpoint unless the institution's agreement
+    # for this gateway covers them; llm_endpoint.restricted_allowed() also
+    # ignores the setting without a gateway. A profile can answer this.
+    if [[ -n "${LLM_ALLOW_RESTRICTED:-}" ]]; then
+        env_set LLM_ALLOW_RESTRICTED "$LLM_ALLOW_RESTRICTED"
+    elif ! env_has LLM_ALLOW_RESTRICTED; then
+        info "  Notes classified 'restricted' (credentials, identifiers, health"
+        info "  records) are withheld from the model endpoint by default."
+        if confirm "  Does your institution's agreement for this gateway cover regulated data, so restricted notes may be sent to it?" N; then
+            env_set LLM_ALLOW_RESTRICTED 1
+        else
+            info "  Withheld. To change it later, set LLM_ALLOW_RESTRICTED=1 in $SECRETS_ENV"
+        fi
+    fi
     info "$GATEWAY_KEY_NAME (used by tagger, voice-cleanup, rag-sync)..."
     prompt_env_secret "$GATEWAY_KEY_NAME" \
         "  Your institution's AI gateway key - NOT an api.anthropic.com key." \

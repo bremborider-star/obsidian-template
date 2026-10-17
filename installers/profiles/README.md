@@ -67,6 +67,7 @@ resolves the named secret out of the keystore.
 |---|---|
 | `LLM_BASE_URL` | Gateway base URL. Unset = stock `api.anthropic.com`. |
 | `LLM_API_KEY_NAME` | Name of the secret holding the gateway key (default `ANTHROPIC_API_KEY`). The *name*, never the value. |
+| `LLM_ALLOW_RESTRICTED` | `1` lets notes classified `restricted` go to the gateway; otherwise they are withheld. Only for an institution whose agreement covers regulated data; ignored without `LLM_BASE_URL`. Unset, the macOS installer asks (default no). |
 | `LLM_GATEWAY_HELP_URL` | Where a colleague requests a key. Shown in the prompt. |
 | `TAGGER_MODEL` | Model id or gateway alias for the tagger. |
 | `TAGGER_PROMPT_CACHE` | `0` if the gateway rejects `cache_control`. |

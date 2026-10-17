@@ -30,6 +30,7 @@ from __future__ import annotations
 import os
 import sys
 import templater_guard  # noqa: E402
+import classification_tier  # noqa: E402
 
 import json
 import re
@@ -658,6 +659,7 @@ def main():
     print("Obsidian Semantic Tagger")
     print(f"   Vault: {VAULT_ROOT}")
     print(f"   Endpoint: {llm_endpoint.describe()}")
+    print(f"   Restricted notes: {'sent (allowed gateway)' if llm_endpoint.restricted_allowed() else 'withheld'}")
     print(f"   Mode: {'DRY RUN' if args.dry_run else 'LIVE'}")
     print()
 
@@ -704,6 +706,8 @@ def main():
     deferred_count = 0
     attempted_count = 0
     error_count = 0
+    withheld_count = 0
+    restricted_ok = llm_endpoint.restricted_allowed()
 
     for filepath in files_to_process:
         # Edit-safety: defer notes touched very recently — you're probably
@@ -727,6 +731,16 @@ def main():
             skipped_count += 1
             continue
 
+        # A restricted note, or one whose tier cannot be read, is not sent to
+        # the model unless restricted_allowed() (an institutional gateway whose
+        # agreement covers it). Not recorded in the tracking file, so allowing
+        # it later picks the note up without a --force.
+        if not restricted_ok:
+            tier, unreadable = classification_tier.effective(text)
+            if tier == "restricted" or unreadable:
+                withheld_count += 1
+                continue
+
         attempted_count += 1
         try:
             changed = process_file(filepath, client, taxonomy_text, valid_tags_map, args.dry_run)
@@ -745,7 +759,7 @@ def main():
     if not args.dry_run:
         save_tracking(tracking)
 
-    print(f"\nDone! Updated: {updated_count} | Skipped (unchanged): {skipped_count} | Deferred (recent edit): {deferred_count} | Total: {len(files_to_process)}")
+    print(f"\nDone! Updated: {updated_count} | Skipped (unchanged): {skipped_count} | Deferred (recent edit): {deferred_count} | Withheld (restricted): {withheld_count} | Total: {len(files_to_process)}")
 
     # Every note this run tried failed: say so with the exit code. A run where
     # every call got a 401 used to exit 0, so the scheduler and the dashboard

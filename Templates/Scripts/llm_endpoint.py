@@ -114,6 +114,25 @@ def key_name() -> str:
     return (os.environ.get("LLM_API_KEY_NAME") or "").strip() or DEFAULT_KEY_NAME
 
 
+def restricted_allowed() -> bool:
+    """Whether a note classified `restricted` (or whose tier cannot be read)
+    may be sent to the model endpoint. By default it may not: restricted is the
+    tier for regulated material (credentials, identifiers, health records).
+    LLM_ALLOW_RESTRICTED=1 permits it, and only on an institutional gateway
+    (LLM_BASE_URL set), for an institution whose agreement covers that data;
+    with stock api.anthropic.com credentials the setting is ignored and says
+    so, because a personal key's terms are not that agreement."""
+    if (os.environ.get("LLM_ALLOW_RESTRICTED") or "").strip().lower() not in (
+            "1", "true", "yes"):
+        return False
+    if base_url() is None:
+        print("note: LLM_ALLOW_RESTRICTED is set but no gateway (LLM_BASE_URL) "
+              "is configured; restricted notes are still withheld from "
+              f"{STOCK_HOST}.", file=sys.stderr)
+        return False
+    return True
+
+
 def describe() -> str:
     """One line for a startup banner or a log — which key, which endpoint.
     Never includes the key's value."""

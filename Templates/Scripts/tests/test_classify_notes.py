@@ -947,3 +947,16 @@ def test_an_adjudicated_note_is_still_tracked(vault: Path,
                                               monkeypatch: pytest.MonkeyPatch):
     write(vault, "Knowledge/A.md", "ordinary text", classification="internal-use-only")
     assert "Knowledge/A.md" in _run(vault, monkeypatch, FakeClient("confidential"))
+
+
+def test_a_restricted_note_is_never_sent_to_the_model(vault: Path):
+    """Nothing ranks above restricted, so a call could only be dropped as a
+    non-elevation, after sending the note out to decide nothing. Not even
+    --force sends it (2026-10-17)."""
+    p = write(vault, "Knowledge/Secret.md", "ordinary prose, no detector hits",
+              classification="restricted")
+    client = FakeClient("restricted")
+    for force in (False, True):
+        assert C.process_file(p, client, dry_run=False, detectors_only=False,
+                              force=force) is None
+    assert client.calls == []
