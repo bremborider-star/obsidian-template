@@ -54,6 +54,54 @@ env_set() {
     ok "  set: $key in $SECRETS_ENV"
 }
 
+# env_get <key>: the value of key in .env, or nothing. For moving a secret into
+# the keystore only; a caller must never print it.
+env_get() {
+    local key="$1"
+    [[ -f "$SECRETS_ENV" ]] || return 0
+    grep -E "^${key}=" "$SECRETS_ENV" | head -n 1 | cut -d= -f2-
+}
+
+# env_unset <key>: remove key's line from .env, keeping its 0600 mode.
+env_unset() {
+    local key="$1" tmp
+    [[ -f "$SECRETS_ENV" ]] || return 0
+    tmp="$(mktemp -t obsidian_env)"
+    grep -vE "^${key}=" "$SECRETS_ENV" > "$tmp" || true
+    install -m 0600 "$tmp" "$SECRETS_ENV"
+    rm -f "$tmp"
+}
+
+# migrate_env_secret <key>: on macOS, move a secret an older install left in
+# .env into the Keychain, then remove it from .env. Scripts read the
+# environment (and so .env) before the Keychain, so the .env copy is the one
+# in use: it is removed only once the Keychain holds that same value. When the
+# Keychain already holds a DIFFERENT value, removing .env would silently
+# switch secrets, so both are left and the operator is told.
+migrate_env_secret() {
+    local key="$1" service envval kcval
+    is_macos || return 0
+    env_has "$key" || return 0
+    service="$(printf '%s' "$key" | tr '[:upper:]' '[:lower:]')"
+    envval="$(env_get "$key")"
+    if kcval="$(_security 10 find-generic-password -a "$USER" -s "$service" -w 2>/dev/null)"; then
+        if [[ "$kcval" == "$envval" ]]; then
+            env_unset "$key"
+            ok "  $key: removed the plaintext copy from $SECRETS_ENV; the Keychain holds it"
+        else
+            warn "  $key is in $SECRETS_ENV and in the Keychain with different values;"
+            warn "  the .env one is in use. Left both: keep the current one, delete the other."
+        fi
+        return 0
+    fi
+    if _secret_store_set "$key" "$envval"; then
+        env_unset "$key"
+        ok "  $key: moved from $SECRETS_ENV into the Keychain"
+    else
+        warn "  $key: Keychain unavailable; it stays in $SECRETS_ENV (mode 0600)"
+    fi
+}
+
 # keystore_has <key>: true if the key is resolvable — non-empty in .env, or
 # present in the platform keystore under the lowercased service name.
 keystore_has() {

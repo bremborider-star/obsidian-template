@@ -47,6 +47,11 @@ info "  credential on this machine should unlock exactly one mailbox holding"
 info "  exactly these payloads. Make the address unguessable."
 info "  Press enter at any prompt to skip; the agent stays inert until set."
 
+# Secrets an older install wrote to .env move to the Keychain (they were
+# written there in plain text until 2026-10-17).
+migrate_env_secret SOURCE_MAIL_APP_PASSWORD
+migrate_env_secret SOURCE_MAIL_TOKEN
+
 prompt_env_value SOURCE_MAIL_USER \
     "  The intake mailbox address the phone sends drops to." \
     "  Example format: intake-xxxxxxxx@gmail.com (use your own random suffix)"
@@ -57,7 +62,7 @@ prompt_env_secret SOURCE_MAIL_APP_PASSWORD \
   Verification is on, and keeps it hidden if 2SV is passkey-only." \
     "https://myaccount.google.com/apppasswords"
 
-if env_has SOURCE_MAIL_TOKEN && [[ "${FORCE:-0}" -ne 1 ]]; then
+if keystore_has SOURCE_MAIL_TOKEN && [[ "${FORCE:-0}" -ne 1 ]]; then
     ok "  SOURCE_MAIL_TOKEN already set; leaving unchanged"
 else
     # Generated rather than prompted: this one is shared with the phone, and a
@@ -81,16 +86,18 @@ else
         err "  token generation produced ${#TOKEN} chars, expected 40"
         exit 1
     fi
-    env_set SOURCE_MAIL_TOKEN "$TOKEN"
+    # The shared signing key: the Keychain, like every other secret (it went
+    # to .env in plain text until 2026-10-17). keystore_set falls back to
+    # .env (mode 0600) only if the Keychain write fails, and says so.
+    keystore_set SOURCE_MAIL_TOKEN "$TOKEN"
     ok "  generated a 40-character SOURCE_MAIL_TOKEN"
     # The token is NOT printed. install.sh tees all output to
-    # ~/Library/Logs/obsidian-template-install.log, so echoing it writes the
-    # transport's shared HMAC signing key -- the one secret this design says is
-    # never transmitted -- in clear to a file on disk. It is already in the
-    # 0600 secrets file; point there instead.
-    info "  Enter this same value in the signing script on each device."
-    info "  Read it from the secrets file (mode 0600), it is not printed here:"
-    info "    grep '^SOURCE_MAIL_TOKEN=' ~/dev/secrets/.env"
+    # ~/Library/Logs/obsidian-template-install.log, so echoing it would write
+    # the transport's shared HMAC signing key -- the one secret this design
+    # says is never transmitted -- in clear to a file on disk.
+    info "  Enter this same value in the signing script on each device. Show it"
+    info "  in your own terminal when you set up a device (it is not printed here):"
+    info "    python3 Templates/Scripts/secret_store.py get SOURCE_MAIL_TOKEN"
 fi
 
 prompt_env_value SOURCE_MAIL_ALLOWED_SENDERS \

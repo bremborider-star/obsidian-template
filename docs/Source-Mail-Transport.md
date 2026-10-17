@@ -145,20 +145,35 @@ Enable 2-Step Verification first, then generate an App Password
 
 ### 2. Secrets
 
-In `~/dev/secrets/.env` (gitignored):
+On macOS, installer component `39-source-mail` does all of this: it prompts for
+the address, allowed senders and app password, generates the token, and keeps
+the two secrets in the Keychain. Re-running it (`./install.sh --only
+39-source-mail`) moves either secret that an older install left in `.env` into
+the Keychain. By hand, or on Windows (where the keystore is DPAPI):
+
+The two non-secret settings go in `~/dev/secrets/.env` (gitignored):
 
 ```
 SOURCE_MAIL_USER=intake-xxxx@gmail.com
-SOURCE_MAIL_APP_PASSWORD=abcdefghijklmnop
-SOURCE_MAIL_TOKEN=<40 random alphanumerics>
 SOURCE_MAIL_ALLOWED_SENDERS=you@icloud.com,you@gmail.com
 ```
 
-Generate the token with 40 alphanumeric characters and **no symbols** — it has
-to survive quoted-printable encoding, email line-wrapping, iOS smart
-punctuation, and dotenv parsing (`#` starts a comment in some parsers, `$` can
-interpolate). The entropy difference is irrelevant; the corruption modes are
-silent.
+The app password and the token go in the platform keystore, not `.env`
+(`python` is the venv's interpreter; on Windows,
+`Templates\Scripts\.venv\Scripts\python.exe`):
+
+```bash
+python Templates/Scripts/secret_store.py set SOURCE_MAIL_APP_PASSWORD   # prompts, hidden
+python -c "import secrets,string; print(''.join(secrets.choice(string.ascii_letters+string.digits) for _ in range(40)))" \
+  | python Templates/Scripts/secret_store.py set SOURCE_MAIL_TOKEN
+```
+
+The token is 40 alphanumeric characters and **no symbols** — it has to survive
+quoted-printable encoding, email line-wrapping, iOS smart punctuation, and
+dotenv parsing (`#` starts a comment in some parsers, `$` can interpolate). The
+entropy difference is irrelevant; the corruption modes are silent. To enter it
+on a device, show it in your own terminal with
+`python Templates/Scripts/secret_store.py get SOURCE_MAIL_TOKEN`.
 
 ### 3. Verify before wiring up a phone
 

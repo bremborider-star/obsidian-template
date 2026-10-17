@@ -94,14 +94,12 @@ The agent fires once on load (`RunAtLoad: true`) and then at :00 and :30 each ho
 
 This is the transport the phone-originated pipelines sit on — voice notes and podcasts all arrive as signed email rather than through a cloud-drive client. Install it before the watchers it feeds. The reasoning, the message format and the producer-side Shortcut are in [[Source-Mail-Transport]]; this is the agent half.
 
-1. **Create the dedicated mailbox** and put its credentials in `~/dev/secrets/.env`:
-
-   ```bash
-   SOURCE_MAIL_USER=intake-xxxx@gmail.com
-   SOURCE_MAIL_APP_PASSWORD=abcdefghijklmnop
-   SOURCE_MAIL_TOKEN=<40 random alphanumerics, no symbols>
-   SOURCE_MAIL_ALLOWED_SENDERS=you@gmail.com
-   ```
+1. **Create the dedicated mailbox** and run `./install.sh --only 39-source-mail`.
+   It writes the two non-secret settings to `~/dev/secrets/.env`
+   (`SOURCE_MAIL_USER`, `SOURCE_MAIL_ALLOWED_SENDERS`) and keeps the app
+   password and the generated token (`SOURCE_MAIL_APP_PASSWORD`,
+   `SOURCE_MAIL_TOKEN`) in the Keychain. See
+   [Source Mail Transport](Source-Mail-Transport.md#2-secrets) for doing it by hand.
 
    Use a separate account, not a `+alias` on your main one, and generate one App Password per machine so a lost machine can be revoked on its own. The token must be alphanumeric — it has to survive quoted-printable encoding, mail line-wrapping, iOS smart punctuation and dotenv parsing, and every one of those failures is silent.
 
@@ -258,9 +256,11 @@ mkdir -p ~/Library/Logs
 
 # 6) For voice-cleanup: confirm voice_cleanup_config.yaml exists
 #    (only the .yaml.example is committed to the repo)
-# 7) For source-mail-pull: confirm SOURCE_MAIL_USER, SOURCE_MAIL_APP_PASSWORD,
-#    SOURCE_MAIL_TOKEN and SOURCE_MAIL_ALLOWED_SENDERS are in .env, then
-#    verify with `source_mail_pull.py --once --dry-run`. App Passwords are
+# 7) For source-mail-pull: confirm SOURCE_MAIL_USER and SOURCE_MAIL_ALLOWED_SENDERS
+#    are in .env and SOURCE_MAIL_APP_PASSWORD and SOURCE_MAIL_TOKEN are in the
+#    Keychain (the Keychain does not migrate: re-run --only 39-source-mail, or
+#    set them with secret_store.py), then verify with
+#    `source_mail_pull.py --once --dry-run`. App Passwords are
 #    per-machine, so a new Mac needs its own — generate and revoke the old one.
 # 8) For obsidian-rag-sync: re-stand-up Open WebUI + Ollama, recreate the
 #    Knowledge collection, update OBSIDIAN_COLLECTION_ID in .env, and
