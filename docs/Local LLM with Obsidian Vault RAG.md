@@ -82,6 +82,8 @@ docker rm -f open-webui
 ./install.sh --only 50-llm-rag      # recreates it from the pin
 ```
 
+If the page then hangs on load, the browser is still running the previous version's cached interface and asking for files the new one does not have (the container log shows `GET /_app/immutable/... 404`). A hard reload (Cmd+Shift+R) fixes it; failing that, clear the site's stored data for `127.0.0.1:3000`. Chats, accounts and the knowledge collection live on the server, not in the browser.
+
 Moving the pin itself is a maintainer step, like re-pinning a plugin: read the release notes, then `python3 installers/lib/rag_pins.py repin --webui vX.Y.Z` and commit the diff. Open WebUI ships security fixes often, so re-pin it on a schedule rather than leaving it to age; prefer a release that has been out for a couple of weeks.
 
 ## Models
