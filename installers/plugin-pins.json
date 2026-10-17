@@ -218,5 +218,28 @@
         "bytes": 82452
       }
     }
+  },
+  {
+    "id": "obsidian-meta-bind-plugin",
+    "repo": "mprojectscode/obsidian-meta-bind-plugin",
+    "kind": "release",
+    "ref": "1.4.15",
+    "files": {
+      "manifest.json": {
+        "url": "https://github.com/mprojectscode/obsidian-meta-bind-plugin/releases/download/1.4.15/manifest.json",
+        "sha256": "428321feb216ec2d9b1f8ed6ee335ed42918ed9a0e7a7bcc359dfb2d3bbb3996",
+        "bytes": 446
+      },
+      "main.js": {
+        "url": "https://github.com/mprojectscode/obsidian-meta-bind-plugin/releases/download/1.4.15/main.js",
+        "sha256": "31ce2bd9bc0cc5789dcbd04c51f53ce2910dcb0c3dd1f0799f9b50db8e72bd16",
+        "bytes": 1132613
+      },
+      "styles.css": {
+        "url": "https://github.com/mprojectscode/obsidian-meta-bind-plugin/releases/download/1.4.15/styles.css",
+        "sha256": "b1dc5b95c770cc4d2ab664091071bada301e1767732bb38d0e437dff6a1d52a2",
+        "bytes": 15058
+      }
+    }
   }
 ]

@@ -112,9 +112,10 @@ triggers the same way (since 2026-10-03):
   `mdm`, `excalidraw-script-install`) and Meta Bind's inline `INPUT[`,
   `VIEW[` and `BUTTON[` render controls that act on a click. Excalidraw's
   frontmatter keys would open a note as a drawing and offer to run its script.
-  Of these the template ships only Metadata Menu. Excalidraw was retired on
-  2026-10-05 and updates remove it; Meta Bind was never shipped. Both stay
-  guarded for anyone who installs them themselves.
+  The template ships Meta Bind (JavaScript off, excluded from the folders
+  that receive outside text) and Metadata Menu. Excalidraw was retired on
+  2026-10-05 and updates remove it; it stays guarded for anyone who installs
+  it themselves.
 
 A zero-width space goes between the fence and the language, after the
 opening backticks of inline code, before a line that starts a code-block
@@ -295,9 +296,9 @@ allowlist first:
 - The plugin baseline also records:
   - which plugins are **enabled**, read as Obsidian reads `community-plugins.json`
     (`ENABLED_CHANGE`);
-  - for the shipped QuickAdd, Metadata Menu and Tasks, and for Meta Bind,
+  - for the shipped QuickAdd, Meta Bind, Metadata Menu and Tasks, and for
     Dataview, Templater and Excalidraw where a vault installs them by hand
-    (the template does not ship them), the settings that let the plugin run
+    (the template retired them), the settings that let the plugin run
     code from note content or on its own (`enableJs`, `enableDataviewJs`, `trigger_on_file_creation`,
     QuickAdd startup macros, Excalidraw's startup script, Metadata Menu
     formulas, Tasks' global query, and so on), and Omnisearch's HTTP server
@@ -313,7 +314,7 @@ allowlist first:
   until you vet and run `--update`. A failure of the check itself raises
   `CONTROL_ERROR` instead of dying quietly.
 - **Not covered:** a setting flipped and flipped back between two runs, for a
-  plugin that reloads settings live (Meta Bind or Templater, where installed). On macOS the agent
+  plugin that reloads settings live (Meta Bind, or Templater where installed). On macOS the agent
   reruns when a watched settings file changes; on Windows the task runs daily
   only.
 - The workflow baseline lives at `~/.local/share/obsidian-security/integrity_state.json`.

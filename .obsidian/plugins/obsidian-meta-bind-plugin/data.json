@@ -1,0 +1,31 @@
+{
+  "devMode": false,
+  "ignoreCodeBlockRestrictions": false,
+  "preferredDateFormat": "YYYY-MM-DD",
+  "firstWeekday": {
+    "index": 1,
+    "name": "Monday",
+    "shortName": "Mo"
+  },
+  "syncInterval": 200,
+  "enableJs": false,
+  "viewFieldDisplayNullAsEmpty": false,
+  "enableSyntaxHighlighting": true,
+  "enableEditorRightClickMenu": true,
+  "inputFieldTemplates": [],
+  "buttonTemplates": [],
+  "excludedFolders": [
+    "Categories",
+    "Clippings",
+    "Creations",
+    "Groups",
+    "Knowledge",
+    "Meetings",
+    "People",
+    "Templates",
+    "Topics",
+    "Z_archive",
+    "Z_attachments",
+    "Z_dashboards"
+  ]
+}

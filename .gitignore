@@ -63,6 +63,9 @@ Z_dashboards/
 !.obsidian/plugins/omnisearch/
 .obsidian/plugins/omnisearch/*
 !.obsidian/plugins/omnisearch/data.json
+!.obsidian/plugins/obsidian-meta-bind-plugin/
+.obsidian/plugins/obsidian-meta-bind-plugin/*
+!.obsidian/plugins/obsidian-meta-bind-plugin/data.json
 
 # Tag tracking files written by Templates/Scripts/tag_clippings.py
 .tag_tracking.json

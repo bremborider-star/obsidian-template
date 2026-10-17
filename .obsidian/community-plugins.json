@@ -8,5 +8,6 @@
   "obsidian-tasks-plugin",
   "tag-wrangler",
   "update-time-on-edit",
-  "metadata-menu"
+  "metadata-menu",
+  "obsidian-meta-bind-plugin"
 ]

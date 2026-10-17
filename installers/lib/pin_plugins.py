@@ -12,6 +12,9 @@ exactly the review moment the pin exists to create.
 Usage (maintainer, with network):
     python3 installers/lib/pin_plugins.py            # refresh all pins
     python3 installers/lib/pin_plugins.py --check    # verify pins still fetch
+    python3 installers/lib/pin_plugins.py --only ID[@TAG] [--only ...]
+        # (re)pin just these plugins, at TAG or their latest release; every
+        # other pin is left exactly as it is
 
 Reads:  .obsidian/community-plugins.json  (the vault's enabled-plugin list)
 Writes: installers/plugin-pins.json
@@ -53,10 +56,55 @@ def _get(url: str, token: str = "") -> bytes:
         return r.read()
 
 
+def _pin_one(pid: str, repo: str | None, token: str, tag: str = "") -> dict | None:
+    """The pin for one plugin: at TAG if given, else its latest release, else
+    the files at the current HEAD commit. None (with the reason on stderr)
+    when it cannot be pinned."""
+    if not repo:
+        print(f"  {pid}: NOT IN REGISTRY — skipped", file=sys.stderr)
+        return None
+    if not tag:
+        try:
+            rel = json.loads(_get(
+                f"https://api.github.com/repos/{repo}/releases/latest", token))
+            tag = rel.get("tag_name", "")
+        except urllib.error.HTTPError:
+            pass
+    if tag:
+        base = f"https://github.com/{repo}/releases/download/{tag}"
+        ref_desc = {"kind": "release", "ref": tag}
+    else:
+        # No releases: pin raw files at the current HEAD commit, so the
+        # bytes are still immutable.
+        head = json.loads(_get(
+            f"https://api.github.com/repos/{repo}/commits/HEAD", token))
+        sha = head["sha"]
+        base = f"https://raw.githubusercontent.com/{repo}/{sha}"
+        ref_desc = {"kind": "commit", "ref": sha}
+    files = {}
+    for fname in FILES:
+        try:
+            data = _get(f"{base}/{fname}", token)
+        except urllib.error.HTTPError:
+            if fname == "styles.css":
+                continue          # optional
+            print(f"  {pid}: missing required {fname} at {base} — "
+                  f"skipped entirely", file=sys.stderr)
+            return None
+        files[fname] = {"url": f"{base}/{fname}",
+                        "sha256": hashlib.sha256(data).hexdigest(),
+                        "bytes": len(data)}
+    print(f"  pinned {pid} @ {ref_desc['ref']} ({len(files)} files)")
+    return {"id": pid, "repo": repo, **ref_desc, "files": files}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true",
                     help="re-download pinned URLs and verify hashes")
+    ap.add_argument("--only", action="append", metavar="ID[@TAG]", default=[],
+                    help="pin only this plugin (at TAG, or its latest release), "
+                         "leaving every other pin untouched; repeatable")
     args = ap.parse_args()
 
     ids = json.loads(
@@ -79,49 +127,32 @@ def main() -> int:
 
     registry = {p["id"]: p["repo"]
                 for p in json.loads(_get(REGISTRY_URL, token))}
+
+    if args.only:
+        wanted = dict((o.split("@", 1) + [""])[:2] for o in args.only)
+        unknown = [pid for pid in wanted if pid not in ids]
+        if unknown:
+            print(f"not in .obsidian/community-plugins.json: {', '.join(unknown)}",
+                  file=sys.stderr)
+            return 2
+        existing = {p["id"]: p for p in json.loads(PINS_PATH.read_text())}
+        for pid, tag in wanted.items():
+            pin = _pin_one(pid, registry.get(pid), token, tag)
+            if pin is None:
+                return 1
+            existing[pid] = pin
+        # Order follows the enabled-plugin list; ids no longer enabled drop.
+        pins = [existing[pid] for pid in ids if pid in existing]
+        PINS_PATH.write_text(json.dumps(pins, indent=2) + "\n")
+        print(f"\nwrote {PINS_PATH} ({len(wanted)} re-pinned, "
+              f"{len(pins) - len(wanted)} unchanged)")
+        return 0
+
     pins = []
     for pid in ids:
-        repo = registry.get(pid)
-        if not repo:
-            print(f"  {pid}: NOT IN REGISTRY — skipped", file=sys.stderr)
-            continue
-        tag = ""
-        try:
-            rel = json.loads(_get(
-                f"https://api.github.com/repos/{repo}/releases/latest", token))
-            tag = rel.get("tag_name", "")
-        except urllib.error.HTTPError:
-            pass
-        if tag:
-            base = f"https://github.com/{repo}/releases/download/{tag}"
-            ref_desc = {"kind": "release", "ref": tag}
-        else:
-            # No releases: pin raw files at the current HEAD commit, so the
-            # bytes are still immutable.
-            head = json.loads(_get(
-                f"https://api.github.com/repos/{repo}/commits/HEAD", token))
-            sha = head["sha"]
-            base = f"https://raw.githubusercontent.com/{repo}/{sha}"
-            ref_desc = {"kind": "commit", "ref": sha}
-        files = {}
-        for fname in FILES:
-            try:
-                data = _get(f"{base}/{fname}", token)
-            except urllib.error.HTTPError:
-                if fname == "styles.css":
-                    continue          # optional
-                print(f"  {pid}: missing required {fname} at {base} — "
-                      f"skipped entirely", file=sys.stderr)
-                files = None
-                break
-            files[fname] = {"url": f"{base}/{fname}",
-                            "sha256": hashlib.sha256(data).hexdigest(),
-                            "bytes": len(data)}
-        if not files:
-            continue
-        pins.append({"id": pid, "repo": repo, **ref_desc, "files": files})
-        print(f"  pinned {pid} @ {ref_desc['ref']} "
-              f"({len(files)} files)")
+        pin = _pin_one(pid, registry.get(pid), token)
+        if pin is not None:
+            pins.append(pin)
 
     PINS_PATH.write_text(json.dumps(pins, indent=2) + "\n")
     print(f"\nwrote {PINS_PATH} ({len(pins)}/{len(ids)} plugins pinned)")

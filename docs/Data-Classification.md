@@ -63,11 +63,11 @@ is a one-line edit; ignoring leaves the note where it was.
 
 The queue is worked from a generated page, `Actions/Classification Review`,
 for one reason: reviewing a backlog of seventy notes by opening seventy notes
-is a workflow nobody completes. With the Meta Bind plugin installed, each
-pending proposal on that page carries a tier dropdown and a Reject toggle bound
-to the note itself, so ruling on it never means leaving the page. The template
-does not ship Meta Bind; without it the page is a read-only list and you rule
-from the command line (see "Working the queue" below). A Bases table
+is a workflow nobody completes. Each pending proposal on that page carries a
+tier dropdown and a Reject toggle bound to the note itself, drawn by the Meta
+Bind plugin the template ships, so ruling on it never means leaving the page.
+If Meta Bind is disabled the page is a read-only list and you rule from the
+command line (see "Working the queue" below). A Bases table
 did this job first and was replaced: Obsidian has no pick-list property type,
 so the tier could only be typed, and accepting took a second step.
 
@@ -212,9 +212,12 @@ while anything is pending, and says so if the page has not been refreshed in
 48 hours.
 
 The fields are [Meta Bind](https://github.com/mProjectsCode/obsidian-meta-bind-plugin)
-inline fields in list form. Meta Bind is **not** in the template's pinned plugin
-set: install it yourself to get the fields. Without it they render as inline
-code and the page is a read-only list; rule from the command line. Bound fields inside a Markdown table were tried
+inline fields in list form. Meta Bind is one of the template's pinned plugins,
+installed with its JavaScript off and excluded from the folders that receive
+outside text (Clippings, Creations, Meetings, People and the rest), so it
+renders fields only where the template puts them, such as `Actions/`. With it
+disabled the fields render as inline code and the page is a read-only list;
+rule from the command line. Bound fields inside a Markdown table were tried
 and misbehaved, so the page never uses one. A note whose path contains a
 character Meta Bind reserves (`{ } [ ] # ^ | : ?`, and a few that would break
 the page: `` ` % $ < > \ ``) gets a plain entry telling you to set the property
@@ -310,10 +313,10 @@ name, a relative or partial path — brings **all** of them into the closure,
 so the gate never has to guess which one Obsidian would pick.
 
 Several rules below name plugins the template does not ship: Templater,
-Dataview and Excalidraw were retired in October 2026, and Meta Bind is an
-optional add-on (see the review page above). The gate still judges their
-syntax, because a vault the user extended, or the recipient of an export, may
-have them installed.
+Dataview and Excalidraw were retired in October 2026. The gate still judges
+their syntax, because a vault the user extended, or the recipient of an
+export, may have them installed. Meta Bind does ship, and its rules apply to
+every vault.
 
 **Fail closed on what it cannot see** (since 2026-09-25). The gate used to
 treat an unresolved embed as advisory, on the premise that nothing exists

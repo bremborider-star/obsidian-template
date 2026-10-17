@@ -432,3 +432,28 @@ def test_the_adopt_rule_allows_a_deliberate_venv_rebuild():
     for text in ((WIN / "update.ps1").read_text(encoding="utf-8"),
                  (REPO / "update.sh").read_text(encoding="utf-8")):
         assert "rebuilt the venv" in text and "pip check" in text
+
+
+# ---------------------------------------------------------------------------
+# Meta Bind ships (2026-10-17): its tracked settings are part of the posture
+# ---------------------------------------------------------------------------
+
+def test_meta_bind_ships_pinned_with_javascript_off_and_outside_text_excluded() -> None:
+    """Meta Bind draws the Classification Review page's tier dropdown and
+    Reject toggle. It renders INPUT[/VIEW[/BUTTON[ fields from note text and
+    can run JavaScript, so the template ships it with JS off and excluded from
+    every folder a pipeline writes outside text into; the ingest guard is the
+    second line."""
+    import json
+    pid = "obsidian-meta-bind-plugin"
+    enabled = json.loads((REPO / ".obsidian" / "community-plugins.json").read_text())
+    pins = {p["id"]: p for p in json.loads((REPO / "installers" / "plugin-pins.json").read_text())}
+    assert pid in enabled and pid in pins and pins[pid]["kind"] == "release"
+    cfg = json.loads((REPO / ".obsidian" / "plugins" / pid / "data.json").read_text())
+    assert cfg["enableJs"] is False and cfg["devMode"] is False
+    assert cfg["ignoreCodeBlockRestrictions"] is False
+    assert not cfg["inputFieldTemplates"] and not cfg["buttonTemplates"]
+    outside_text = {"Clippings", "Creations", "Meetings", "People", "Groups",
+                    "Knowledge", "Templates", "Z_archive", "Z_attachments", "Z_dashboards"}
+    assert outside_text <= set(cfg["excludedFolders"])
+    assert "Actions" not in cfg["excludedFolders"]      # the review page lives there

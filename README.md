@@ -64,7 +64,7 @@ cd ~/Obsidian && ./install.sh
 - Install Homebrew, python3.13, yt-dlp, ffmpeg, Ollama, Docker Desktop, and Obsidian.app — anything missing
 - Bootstrap the vault folders and a per-vault Python venv with the workflow dependencies
 - Prompt for API keys (Anthropic or your gateway, Open WebUI) — see [Before You Start](#before-you-start--have-these-ready) above
-- Install the 10 community plugins from **pinned, SHA256-verified** GitHub releases into `.obsidian/plugins/` (pins live in `installers/plugin-pins.json`; refresh deliberately with `installers/lib/pin_plugins.py`)
+- Install the community plugins from **pinned, SHA256-verified** GitHub releases into `.obsidian/plugins/` (pins live in `installers/plugin-pins.json`; refresh deliberately with `installers/lib/pin_plugins.py`)
 - Install 13 LaunchAgents (tagger, voice-cleanup, source-mail-pull, strip-ads, podcast-watch, meeting-prep, two security agents, RAG sync, group-photos, morning-dashboard, vault-lint, nightly classifier) and build the Markitdown Dropper.app — the two meeting-pipeline agents are separate opt-ins
 - Apply the canonical ribbon icon order to `workspace.json`
 - Pull a local 8B LLM model via Ollama and start an Open WebUI container at <http://localhost:3000>
@@ -326,6 +326,7 @@ All plugins are pre-configured; the installer fetches each one from its pinned r
 - **Sort and Permute Lines** — Line sorting utility
 - **Update Time on Edit** — Auto-maintains the modified timestamp in note frontmatter
 - **Metadata Menu** — Structured frontmatter field definitions and editing
+- **Meta Bind** — The tier dropdown and Reject toggle on the Classification Review page (JavaScript off; excluded from the folders that receive outside text)
 
 ## Demo Content Included
 
