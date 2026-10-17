@@ -314,7 +314,7 @@ Install steps, the optional Tag Taxonomy.md format, and on-demand maintenance pr
 
 ## Required Community Plugins
 
-All plugins are pre-configured and included:
+All plugins are pre-configured; the installer fetches each one from its pinned release and checks its hash:
 
 - **QuickAdd** — Custom note creation commands
 - **Tasks** — Task management across vault

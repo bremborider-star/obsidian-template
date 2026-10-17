@@ -309,6 +309,12 @@ Excalidraw drawing. A reference that could mean several notes — a duplicate
 name, a relative or partial path — brings **all** of them into the closure,
 so the gate never has to guess which one Obsidian would pick.
 
+Several rules below name plugins the template does not ship: Templater,
+Dataview and Excalidraw were retired in October 2026, and Meta Bind is an
+optional add-on (see the review page above). The gate still judges their
+syntax, because a vault the user extended, or the recipient of an export, may
+have them installed.
+
 **Fail closed on what it cannot see** (since 2026-09-25). The gate used to
 treat an unresolved embed as advisory, on the premise that nothing exists
 behind it. That premise held only if its link resolution matched Obsidian's

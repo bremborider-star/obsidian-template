@@ -6,19 +6,19 @@ that should not be public.
 Rules
 -----
 The obsidian-template repo is a PUBLIC GitHub repository. Every .md file
-in a "user-content" folder must explicitly carry `classification: public`
-in its YAML frontmatter, per your own vault's classification scheme (see
+outside the template's own scaffolding must explicitly carry
+`classification: public` in its YAML frontmatter, per your own vault's classification scheme (see
 e.g. Knowledge/Data Classification.md if you keep one). Files without
 classification or with any value other than `public` are violations and
 must be fixed before they can be committed.
 
-Audited folders (user content — must be `classification: public`):
-    Actions, Categories, Clippings, Creations, Daily, Excalidraw, Groups,
-    Knowledge, Meetings, Notes, People, Topics
+Audited (default deny): every .md in the tree, content folders, Z_archive/,
+a new top-level folder and the repo root included.
 
-Skipped (scaffolding / config / docs — no classification check):
-    .git/, .github/, .obsidian/, Templates/, Z_archive/, Z_attachments/,
-    docs/, installers/, and the top-level README.md.
+Skipped (the template's own scaffolding, SCAFFOLD_FOLDERS and
+SCAFFOLD_ROOT_FILES below): Templates/, Z_attachments/, docs/, installers/,
+every dot-folder (.git/, .github/, .obsidian/, ...), and the root README.md,
+CLAUDE.md and ONBOARDING.md.
 
 Modes
 -----

@@ -295,9 +295,10 @@ allowlist first:
 - The plugin baseline also records:
   - which plugins are **enabled**, read as Obsidian reads `community-plugins.json`
     (`ENABLED_CHANGE`);
-  - for Meta Bind, Dataview, Templater, QuickAdd, Excalidraw, Metadata Menu
-    and Tasks, the settings that let the plugin run code from note content or
-    on its own (`enableJs`, `enableDataviewJs`, `trigger_on_file_creation`,
+  - for the shipped QuickAdd, Metadata Menu and Tasks, and for Meta Bind,
+    Dataview, Templater and Excalidraw where a vault installs them by hand
+    (the template does not ship them), the settings that let the plugin run
+    code from note content or on its own (`enableJs`, `enableDataviewJs`, `trigger_on_file_creation`,
     QuickAdd startup macros, Excalidraw's startup script, Metadata Menu
     formulas, Tasks' global query, and so on), and Omnisearch's HTTP server
     switch, which would expose the vault's search index on the network; each

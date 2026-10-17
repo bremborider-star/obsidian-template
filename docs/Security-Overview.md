@@ -110,7 +110,7 @@ and `strip_ads` neutralizes it seconds to minutes afterwards (see
 | Plugin release pinning | A plugin file that differs from the reviewed release; an ambient "latest" | Install, and every update that moves the pins or finds a plugin off its pins | [Security-Harness.md](Security-Harness.md) |
 | Plugin integrity check | Changed plugin code or manifest, a newly enabled plugin, a changed code-running setting, a hand-edited allowlist | Scheduled daily, and on change to the plugins folder (macOS) | [Security-Harness.md](Security-Harness.md) |
 | Workflow integrity monitor | Changed scripts, scheduler entries, venv, templates, job settings, Claude CLI config, secrets file and bytecode; bulk note deletion | Scheduled daily, and on change to scripts or LaunchAgents (macOS) | [Security-Harness.md](Security-Harness.md) |
-| Ingest guard | Outside text that would run as Templater, Tasks, Dataview, Bases, Meta Bind, Metadata Menu or Excalidraw code | Every job that writes outside text into the vault | [Security-Harness.md](Security-Harness.md) |
+| Ingest guard | Outside text that would act as plugin code: in the shipped Tasks, Metadata Menu and core Bases, and in Templater, Dataview, Meta Bind and Excalidraw for a vault that installs them |  Every job that writes outside text into the vault | [Security-Harness.md](Security-Harness.md) |
 | Confined headless Claude sessions | A crafted invite or diff steering a model session to a shell, files or other connector tools | Every meeting pull; every drift review | [Meeting-Handoff-MCP-Producer.md](Meeting-Handoff-MCP-Producer.md), [Drift-Review.md](Drift-Review.md) |
 | Signed mail-drop transport | Forged, altered, retargeted or replayed capture drops; path traversal | Every mail pull (every 300 seconds on macOS) | [Source-Mail-Transport.md](Source-Mail-Transport.md) |
 | Platform keystore for secrets | API keys and app passwords sitting in a plaintext file | Install; every job that reads a secret | [Windows Setup.md](Windows%20Setup.md) |
@@ -163,13 +163,16 @@ what it loads.
 `templater_guard.neutralize()` is applied by every script that writes text
 from outside the vault into a note: meeting pre-population, clipping cleanup,
 document conversion, transcripts, YouTube summaries, and the report lines of
-the tagger, classifier and RAG sync. It inserts a zero-width space so that
-Templater commands, Tasks and Dataview blocks, Dataview inline queries, Bases
-blocks, and Meta Bind, Metadata Menu and Excalidraw triggers no longer parse,
-while the text reads the same. Fence languages are matched the way Obsidian
-reads them, so encoded variants are covered. A test lists every guarded
-writer. The template no longer ships Templater, Dataview or Excalidraw, and
-updates remove them; the guard stays for anyone who installs them.
+the tagger, classifier and RAG sync. It inserts a zero-width space so that the
+triggers of the plugins the template ships (Tasks blocks, Metadata Menu
+blocks, core Bases blocks) no longer parse, while the text reads the same.
+It also defuses Templater commands, Dataview blocks and inline queries, and
+Meta Bind and Excalidraw triggers. The template does not ship those four:
+Templater, Dataview and Excalidraw were retired in October 2026 and updates
+remove them, and Meta Bind was never shipped. The guard keeps covering them
+because a user can install any of them by hand. Fence languages are matched
+the way Obsidian reads them, so encoded variants are covered. A test lists
+every guarded writer.
 
 Its stated limits: copied text keeps the zero-width space, setext `===`
 headings lose their formatting, the core search `query` block is left alone,
@@ -210,8 +213,9 @@ is generated once and kept in the Keychain (macOS) or a DPAPI-protected file
 (Windows). A hand edit to the allowlist reports `ALLOWLIST_TAMPER`. It also
 baselines which plugins are enabled, the per-plugin settings that let a plugin
 run code from notes or on its own (QuickAdd macros, Metadata Menu formulas,
-Tasks' global query, Meta Bind's JavaScript switch, Templater's startup
-templates, and so on), every script and template those settings point to, and
+Tasks' global query, and for a vault that installs them by hand, Meta Bind's
+JavaScript switch and Templater's startup templates), every script and
+template those settings point to, and
 Omnisearch's HTTP server switch. `BUNDLE_CHANGE`, code that changed without a
 version bump, is the strongest supply-chain signal it raises.
 
@@ -237,11 +241,15 @@ baselines as its last step, after every job is in place.
 (which includes `~/dev/secrets/.env`), then the platform keystore: the
 Keychain through Apple-signed `/usr/bin/security` on macOS, a DPAPI-encrypted
 file on Windows. The installer stores the model endpoint key, the Open WebUI
-key and the mailbox app password in the keystore, and values travel over
-stdin, never argv. Every Keychain call has a hard timeout, because an unseen
+key, the mailbox app password and the mail-drop HMAC token in the keystore;
+since 2026-10-17 it also moves either mail secret an older install left in
+`.env` into the Keychain, unless the Keychain already holds a different value.
+Values reach `secret_store.py` over stdin, never its command line, but on
+macOS it passes them to `/usr/bin/security` as an argument, so a process
+listing taken at that instant could see one; writes happen only at install
+or rotation. Every Keychain call has a hard timeout, because an unseen
 consent prompt would otherwise hang a headless job. Non-secret configuration
-stays in `.env`, and so does the mail-drop HMAC token, which the installer
-generates there. The integrity monitor hashes `.env` and, on macOS and Linux,
+stays in `.env`. The integrity monitor hashes `.env` and, on macOS and Linux,
 reports it on every run if group or others can read it. State files are
 written `0600` on POSIX; on Windows `restrict_file()` drops ACL inheritance
 and grants only the user and `SYSTEM`.
@@ -298,8 +306,9 @@ audience's ceiling (`public`, `internal`, `cleared`) and never passes
 `restricted`. It resolves embeds recursively to depth six and judges the whole
 closure. It blocks on what it cannot see: an embed that resolves to nothing,
 a query block, an unparseable canvas, a tier it does not recognise, ambiguous
-frontmatter, a Templater dynamic command, and Meta Bind fields in folders
-Meta Bind renders. Several of those blocks cannot be overridden; every
+frontmatter, and the syntax of plugins the template does not ship but a
+vault or a recipient may have: a Templater dynamic command, and Meta Bind
+fields in folders Meta Bind renders. Several of those blocks cannot be overridden; every
 decision and every `--override` reason is appended to the alert log. All
 gates read the tier through one reader, `classification_tier.py`, where the
 most restrictive of repeated values wins.

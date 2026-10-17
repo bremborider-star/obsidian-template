@@ -72,11 +72,11 @@ KNOWLEDGE_DIR = VAULT / "Knowledge"
 TOPICS_DIR = VAULT / "Topics"
 ACTIONS_DIR = VAULT / "Actions"
 
-# Folders the classification auditor treats as user content. Removal is
+# The content folders demo notes are written into. Removal is
 # confined to these, as a second guard alongside the frontmatter marker.
 CONTENT_FOLDERS = frozenset({
     "Actions", "Categories", "Clippings", "Creations", "Daily",
-    "Excalidraw", "Groups", "Knowledge", "Meetings", "Notes",
+    "Groups", "Knowledge", "Meetings", "Notes",
     "People", "Topics",
 })
 
@@ -675,12 +675,12 @@ collecting whatever tags already exist in the vault, which drifts over time.
 
 DATA_CLASSIFICATION_BODY = """# Data Classification
 
-Every note in an audited folder carries a `classification:` field in its
-frontmatter. The public template repo enforces this: `installers/lib/check_classification.py`
-runs as a pre-commit hook **and** as installer component `02-classification-audit`,
-and it hard-fails on any `.md` file in `Actions/`, `Categories/`, `Clippings/`,
-`Creations/`, `Daily/`, `Excalidraw/`, `Groups/`, `Knowledge/`, `Meetings/`,
-`Notes/`, `People/`, or `Topics/` that is not marked `public`.
+Every note carries a `classification:` field in its frontmatter. The public
+template repo enforces this: `installers/lib/check_classification.py` runs as a
+pre-commit hook **and** as installer component `02-classification-audit`, and it
+hard-fails on any `.md` file outside the template's own scaffolding (`Templates/`,
+`Z_attachments/`, `docs/`, `installers/`, dot-folders and the root docs) that is
+not marked `public`.
 
 ## Levels
 
