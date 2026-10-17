@@ -54,7 +54,7 @@ The Ollama server listens on `127.0.0.1:11434`. Block outbound exposure on the L
 
 ### Open WebUI
 
-Open WebUI is the chat front-end and the RAG layer (its built-in **Knowledge** feature). Run it in Docker, bound to localhost only:
+Open WebUI is the chat front-end and the RAG layer (its built-in **Knowledge** feature). The installers run it in Docker, bound to localhost only, from the release pinned in `installers/rag-pins.json`. By hand, from the repo root:
 
 ```bash
 docker run -d \
@@ -63,7 +63,7 @@ docker run -d \
   -v open-webui:/app/backend/data \
   --name open-webui \
   --restart always \
-  ghcr.io/open-webui/open-webui:main
+  "$(python3 installers/lib/rag_pins.py image)"
 ```
 
 Notes:
@@ -72,18 +72,21 @@ Notes:
 - The first time you visit `http://localhost:3000` you'll be prompted to create an admin account. Create the admin first, then go to **Admin Panel → Settings → General** and set `Enable New Sign Ups` to OFF and `Default User Role` to `pending`. Do **not** set `ENABLE_SIGNUP=false` as a startup environment variable — it blocks all signups including the very first admin signup.
 - Keep Open WebUI **localhost-only**. There is no supported remote-access path for the vault-RAG UI: do not open port 3000 to the LAN, and do not expose it over a mesh VPN such as Tailscale — the supply-chain surface of a third-party mesh isn't worth it for a personal index. To use the UI from another device, drive the host over its built-in **Screen Sharing** rather than exposing the port.
 
-Update the container after a new release:
+- The image is pinned by release and digest (`ghcr.io/open-webui/open-webui:vX.Y.Z@sha256:…`), not taken from the moving `main` tag. Docker resolves the digest, so a re-pushed tag or a swapped image is refused rather than run. The installers and both updaters report a container running anything else; they do not replace it, because moving releases migrates Open WebUI's database.
+
+To move to the pinned image (your account and knowledge live on the volume and are kept):
 
 ```bash
-docker pull ghcr.io/open-webui/open-webui:main
-docker stop open-webui
-docker rm open-webui
-# re-run the docker run command above
+docker pull "$(python3 installers/lib/rag_pins.py image)"
+docker rm -f open-webui
+./install.sh --only 50-llm-rag      # recreates it from the pin
 ```
+
+Moving the pin itself is a maintainer step, like re-pinning a plugin: read the release notes, then `python3 installers/lib/rag_pins.py repin --webui vX.Y.Z` and commit the diff. Open WebUI ships security fixes often, so re-pin it on a schedule rather than leaving it to age; prefer a release that has been out for a couple of weeks.
 
 ## Models
 
-The bootstrap script pulls `llama3.1:8b-instruct-q8_0`, plus `qwen2.5:14b-instruct-q6_K` and `llama3.3:70b-instruct-q5_K_M` unless run with `--minimal` (the installer runs it `--minimal`, so only the 8B). Gemma 4, Nemotron and the embedding model below are pulled by hand with `ollama pull`. Each base model gets wrapped as a "Custom Model" in **Open WebUI → Workspace → Models** with the vault Knowledge collection pre-attached and a tailored system prompt — those wrappers appear in the model picker as **`<model> + Vault`**:
+The bootstrap script pulls `llama3.1:8b-instruct-q8_0`, plus `qwen2.5:14b-instruct-q6_K` and `llama3.3:70b-instruct-q5_K_M` unless run with `--minimal` (the installer runs it `--minimal`, so only the 8B). Ollama cannot pull by digest, so after the pulls it checks each model against its manifest digest in `installers/rag-pins.json`, and `update.sh` repeats the check; a model that changed under its tag is reported, never deleted. Run the check yourself with `python3 installers/lib/rag_pins.py verify-models`. Gemma 4, Nemotron and the embedding model below are pulled by hand with `ollama pull`. Each base model gets wrapped as a "Custom Model" in **Open WebUI → Workspace → Models** with the vault Knowledge collection pre-attached and a tailored system prompt — those wrappers appear in the model picker as **`<model> + Vault`**:
 
 | Custom model | Base model tag | Loaded size | Speed | Use it for |
 |---|---|---|---|---|

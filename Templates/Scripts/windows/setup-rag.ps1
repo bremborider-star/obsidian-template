@@ -79,6 +79,14 @@ if ($SkipModel) {
 } elseif ($ollama) {
     Write-Host "  pulling $Model (large download; can take several minutes) ..."
     Invoke-Native -Warn -ErrorMessage "'ollama pull $Model' failed" { & $ollama pull $Model }
+    # Ollama cannot pull by digest; check the model against installers\rag-pins.json.
+    $pinState = Test-OllamaModelPin $Model
+    switch ($pinState) {
+        'OK'       { Write-Host "  $Model matches its pin" }
+        'CHANGED'  { Write-Warning "  $Model differs from its pin: upstream moved the tag. Check the model's page before using it." }
+        'UNPINNED' { Write-Warning "  $Model has no pin in installers\rag-pins.json; it was pulled unchecked." }
+        default    { Write-Warning "  could not check $Model against its pin (is Ollama running?)" }
+    }
 } else {
     Write-Warning "  ollama not on PATH yet. Open a NEW terminal and run: ollama pull $Model"
 }
@@ -158,6 +166,7 @@ if ($existing -eq 'open-webui') {
     } else {
         Write-Host '  open-webui container present and bound to 127.0.0.1; started (if it was stopped)'
     }
+    if (Test-OpenWebUIImagePin) { Write-Host '  open-webui runs the pinned image' }
 } else {
     Write-Host '  pulling and starting the official open-webui image...'
     Start-OpenWebUIContainer

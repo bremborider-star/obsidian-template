@@ -426,9 +426,21 @@ function Invoke-Native {
 # setup-rag.ps1 did exactly that, and an existing container keeps its binding
 # until it is recreated, so this checks and repairs rather than trusting the
 # run command. The volume is kept: recreating loses no account or knowledge.
-$script:OpenWebUIImage = 'ghcr.io/open-webui/open-webui:main'
+#
+# The image is pinned by digest in installers\rag-pins.json (shared with macOS;
+# installers\lib\rag_pins.py re-pins it). Docker resolves the digest, so a
+# re-pushed tag or a swapped image is refused rather than run.
+# Read tolerantly: every Windows script dot-sources this file, and only the RAG
+# functions need the pins, so a missing file must not break the rest.
+$script:RagPins = $null
+$script:OpenWebUIImage = $null
+try {
+    $script:RagPins = Get-Content -Raw -Encoding UTF8 -ErrorAction Stop (Join-Path $PSScriptRoot '..\..\..\installers\rag-pins.json') | ConvertFrom-Json
+    $script:OpenWebUIImage = '{0}:{1}@{2}' -f $script:RagPins.open_webui.image, $script:RagPins.open_webui.tag, $script:RagPins.open_webui.digest
+} catch { }
 
 function Start-OpenWebUIContainer {
+    if (-not $script:OpenWebUIImage) { throw 'installers\rag-pins.json is missing or unreadable; the Open WebUI image cannot be pinned' }
     Invoke-Native -ErrorMessage 'docker run failed' {
         docker run -d --restart=always `
             -p 127.0.0.1:3000:8080 `
@@ -512,6 +524,43 @@ function Test-OpenWebUIReachesOllama {
         $out = docker exec open-webui python3 -c "import urllib.request; urllib.request.urlopen('http://host.docker.internal:11434/api/version', timeout=5); print('reachable')" 2>$null
     } finally { $ErrorActionPreference = $prevEAP }
     return ($LASTEXITCODE -eq 0 -and "$out" -match 'reachable')
+}
+
+# Report (never replace) when the open-webui container runs an image other than
+# the pinned one: moving releases migrates its database, which is the user's
+# call. Returns $true when it is on the pin.
+function Test-OpenWebUIImagePin {
+    if (-not $script:RagPins) {
+        Write-Warning '  installers\rag-pins.json is missing or unreadable; cannot check the image pin'
+        return $false
+    }
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $imageId = (docker inspect open-webui --format '{{.Image}}' 2>$null)
+        $digests = "$(docker image inspect $imageId --format '{{join .RepoDigests " "}}' 2>$null)"
+    } finally { $ErrorActionPreference = $prevEAP }
+    if ($digests -like ('*@' + $script:RagPins.open_webui.digest + '*')) { return $true }
+    Write-Warning ("  open-webui is not on the pinned image ({0})." -f $script:OpenWebUIImage)
+    Write-Warning '  To move, on the same volume (account and knowledge kept):'
+    Write-Warning ("    docker pull {0}; docker rm -f open-webui; then re-run setup-rag.ps1" -f $script:OpenWebUIImage)
+    return $false
+}
+
+# Compare an installed Ollama model with its pin (Ollama cannot pull by digest,
+# so this runs after the pull). 'OK', 'CHANGED', 'UNPINNED' or 'NOT INSTALLED'.
+function Test-OllamaModelPin([string]$Model) {
+    if (-not $script:RagPins) { return 'UNPINNED' }
+    $pin = $script:RagPins.ollama_models.$Model
+    if (-not $pin) { return 'UNPINNED' }
+    try {
+        $tags = Invoke-RestMethod -Uri 'http://127.0.0.1:11434/api/tags' -TimeoutSec 10
+    } catch { return 'NOT INSTALLED' }
+    $m = @($tags.models | Where-Object { $_.name -eq $Model }) | Select-Object -First 1
+    if (-not $m) { return 'NOT INSTALLED' }
+    $digest = "$($m.digest)"
+    if ($digest -notlike 'sha256:*') { $digest = 'sha256:' + $digest }
+    if ($digest -eq $pin) { return 'OK' } else { return 'CHANGED' }
 }
 
 # True if the WSL2 platform is already present, even with zero distros

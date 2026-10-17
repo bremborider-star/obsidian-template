@@ -120,6 +120,7 @@ def scratch(tmp_path):
     shutil.copytree(REPO / "installers" / "lib", vault / "installers" / "lib")
     shutil.copytree(REPO / "installers" / "components", vault / "installers" / "components")
     (vault / "installers" / "plugin-pins.json").write_text("[]\n")
+    shutil.copy2(REPO / "installers" / "rag-pins.json", vault / "installers" / "rag-pins.json")
     scripts = vault / "Templates" / "Scripts"
     scripts.mkdir(parents=True)
     for p in (REPO / "Templates" / "Scripts").glob("*.plist"):
@@ -131,7 +132,9 @@ def scratch(tmp_path):
     (vault / ".obsidian" / "community-plugins.json").write_text("[]")
     # OBSIDIAN_PGREP: the real pgrep would see the maintainer's own Obsidian,
     # and the update refuses while it runs.
+    # OBSIDIAN_DOCKER: likewise, never the maintainer's real containers.
     env = {**os.environ, "HOME": str(home), "USER": "tester", "OBSIDIAN_PGREP": "false",
+           "OBSIDIAN_DOCKER": "false",
            "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid",
            "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.invalid"}
     subprocess.run(["git", "init", "-q"], cwd=vault, check=True, env=env)
@@ -394,3 +397,38 @@ def test_the_quickadd_patch_runs_on_every_update(scratch, tmp_path, allow_subpro
     assert log == ["install.sh --auto --only 31-quickadd-patch",
                    "install.sh --auto --only 32-timestamp-ignores",
                    "install.sh --auto --only 56-script-permissions"], log
+
+
+def test_an_update_reports_an_open_webui_container_off_its_pin(
+        scratch, tmp_path, allow_subprocess):
+    """The RAG check reports, never replaces: a container on another image is
+    named with the command that moves it (2026-10-17)."""
+    home, vault, la, env = scratch
+    stubs = tmp_path / "stubs"
+    stubs.mkdir()
+    (stubs / "launchctl").write_text("#!/bin/sh\nexit 0\n")
+    (stubs / "launchctl").chmod(0o755)
+    docker = stubs / "fake-docker"
+    docker.write_text(
+        '#!/bin/sh\n'
+        'case "$1" in\n'
+        '  ps) echo open-webui ;;\n'
+        '  port) echo 127.0.0.1:3000 ;;\n'
+        '  inspect) echo sha256:imageid ;;\n'
+        '  image) echo "ghcr.io/open-webui/open-webui@sha256:' + "0" * 64 + '" ;;\n'
+        '  rm|run|pull) echo "MUTATED $*" ; exit 1 ;;\n'
+        'esac\n')
+    docker.chmod(0o755)
+    venv_py = vault / "Templates" / "Scripts" / ".venv" / "bin" / "python3"
+    venv_py.unlink()
+    venv_py.write_text('#!/bin/sh\nif [ "$1" = "-c" ]; then echo "arm64 13 gil"; exit 0; fi\n')
+    venv_py.chmod(0o755)
+    head = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=vault,
+                          capture_output=True, text=True).stdout.strip()
+    r = subprocess.run(["/bin/bash", str(vault / "update.sh"), "--after-pull", "--from", head],
+                       capture_output=True, text=True,
+                       env={**env, "PATH": f"{stubs}:{env['PATH']}", "OBSIDIAN_DOCKER": str(docker)})
+    out = r.stdout + r.stderr
+    assert "== local RAG stack ==" in out, out
+    assert "open-webui is not on the pinned image" in out
+    assert "MUTATED" not in out

@@ -317,6 +317,7 @@ What leaves the machine, and where it goes:
 | The vault folder, if you use Obsidian Sync | Obsidian's own sync | Obsidian's servers, end-to-end encrypted |
 | Repository diff and docs (maintainer only) | drift reviewer | Anthropic, through the CLI |
 | Plugin files and Python packages | installer and updater | downloaded from GitHub releases and PyPI, hash-checked |
+| The Open WebUI image and Ollama models (optional RAG stack) | RAG installers | downloaded from GitHub's container registry and Ollama's, pinned by digest (`installers/rag-pins.json`) |
 
 Everything else stays local. The usage log, logs, job state and security
 baselines sit outside the vault, so they never sync or appear in search.

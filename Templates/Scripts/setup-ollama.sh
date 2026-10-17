@@ -177,6 +177,17 @@ else
             err "    failed to pull $m — continuing"
         fi
     done
+    # Ollama cannot pull by digest, so each model is checked after the pull
+    # against installers/rag-pins.json. A model that changed under its tag is
+    # reported, not deleted: read why before using it.
+    PINS_TOOL="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/installers/lib/rag_pins.py"
+    if [[ -f "$PINS_TOOL" ]]; then
+        info "Checking the models against their pins..."
+        if ! python3 "$PINS_TOOL" verify-models "${MODELS[@]}"; then
+            err "  a model differs from its pin (CHANGED above): upstream moved the tag."
+            err "  Check the model's page before using it, then re-pin deliberately."
+        fi
+    fi
 fi
 
 # ---------- summary ----------

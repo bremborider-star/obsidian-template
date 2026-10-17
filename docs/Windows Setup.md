@@ -607,7 +607,7 @@ Snapdragon X Elite (Surface Laptop 7, Windows 11 build 26200):
 | Docker Desktop (winget `Docker.DockerDesktop`) | native ARM64 binary |
 | Ollama (winget `Ollama.Ollama`) | native ARM64 binary |
 | `llama3.1:8b` | pulls and serves normally (~4.9 GB) |
-| `ghcr.io/open-webui/open-webui:main` | multi-arch image, publishes `linux/arm64` |
+| `ghcr.io/open-webui/open-webui` (the release pinned in `installers/rag-pins.json`) | multi-arch image, publishes `linux/arm64` |
 
 So no part of the RAG stack needs emulation and no image needs a
 platform override. Note that Ollama has no Adreno GPU or Hexagon NPU backend,

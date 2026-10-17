@@ -1,0 +1,14 @@
+{
+  "open_webui": {
+    "image": "ghcr.io/open-webui/open-webui",
+    "tag": "v0.11.4",
+    "digest": "sha256:9591b13f13843c7721c2b8eaf7382846c81b3ffe126526d1888d1fed50c6a33f"
+  },
+  "ollama_models": {
+    "llama3.1:8b-instruct-q8_0": "sha256:b158ded76fa05be6bce8a682099ce5df8c5571340a04cf63a2923464679db576",
+    "qwen2.5:14b-instruct-q6_K": "sha256:4f6861a20c29a1f807dd32bccddfbb65afb5ef6f64250e3253b2e81913b18d54",
+    "llama3.3:70b-instruct-q5_K_M": "sha256:a495e09a05137d0216af9d190425f9c8fd7fa15e5dd581c928e221c3861126b9",
+    "llama3.1:8b": "sha256:46e0c10c039e019119339687c3c1757cc81b9da49709a3b3924863ba87ca666e",
+    "nomic-embed-text:latest": "sha256:0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f"
+  }
+}

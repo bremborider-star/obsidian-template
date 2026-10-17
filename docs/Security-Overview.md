@@ -404,9 +404,13 @@ a push.
   tool can be steered to another item the connector exposes. Model output
   written to notes (tags, rationales, summaries) is sanitised but can still be
   wrong.
-- **The RAG stack is not pinned.** The Open WebUI image is pulled by its
-  `main` tag and Ollama models by name, not by digest, and neither is covered
-  by the integrity monitor. Ollama's own API has no authentication; it is
+- **The RAG stack is pinned, but not watched.** Open WebUI runs from a pinned
+  release by digest and each Ollama model is checked against its pinned
+  manifest digest after a pull (`installers/rag-pins.json`). An existing
+  container on another image, or a model that changed under its tag, is
+  reported, not replaced; models a user pulls by hand are not pinned; and
+  neither the image nor the model files are covered by the integrity monitor
+  between updates. Ollama's own API has no authentication; it is
   bound to loopback, and on Windows setup and every update warn if it listens
   beyond the machine, but nothing stops a user who widens it deliberately.
 - **Hooks can be bypassed.** `--no-verify` skips both hooks. The recipient-side

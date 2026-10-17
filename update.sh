@@ -238,6 +238,35 @@ main() {
         "$REPO_ROOT/install.sh" --auto --only 56-script-permissions
     fi
 
+    # Local RAG stack, report only, where a container exists: the binding
+    # (the installer repairs it; an update only says so) and the image pin.
+    # OBSIDIAN_DOCKER: the tests point it at a stub, so they never touch the
+    # maintainer's real Docker.
+    RAG_DOCKER="${OBSIDIAN_DOCKER:-docker}"
+    if has_cmd "$RAG_DOCKER" && "$RAG_DOCKER" ps -a --format '{{.Names}}' 2>/dev/null | grep -q '^open-webui$'; then
+        info "== local RAG stack =="
+        rag_exposed="$("$RAG_DOCKER" port open-webui 8080 2>/dev/null | grep -v '^127\.0\.0\.1:' || true)"
+        if [[ -n "$rag_exposed" ]]; then
+            warn "  open-webui is published beyond this Mac; fix with: ./install.sh --only 50-llm-rag"
+        fi
+        rag_digest="$(python3 "$REPO_ROOT/installers/lib/rag_pins.py" image-digest 2>/dev/null || true)"
+        if [[ -z "$rag_digest" ]]; then
+            warn "  installers/rag-pins.json is missing or unreadable; cannot check the open-webui image pin"
+        else
+            rag_image_id="$("$RAG_DOCKER" inspect open-webui --format '{{.Image}}' 2>/dev/null || true)"
+            if "$RAG_DOCKER" image inspect "$rag_image_id" --format '{{join .RepoDigests " "}}' 2>/dev/null | grep -q "@$rag_digest"; then
+                ok "  open-webui runs the pinned image"
+            else
+                warn "  open-webui is not on the pinned image ($(python3 "$REPO_ROOT/installers/lib/rag_pins.py" image));"
+                warn "  move with: docker pull <that image> && docker rm -f open-webui && ./install.sh --only 50-llm-rag"
+            fi
+        fi
+        if has_cmd ollama; then
+            python3 "$REPO_ROOT/installers/lib/rag_pins.py" verify-models 2>/dev/null \
+                || warn "  a pinned Ollama model differs from its pin (see above), or Ollama is not running"
+        fi
+    fi
+
     # ---- 6. security controls (report only) ---------------------------------
     # Adopting a baseline is a decision for the person reading this, after
     # checking that the drift is the update and nothing else. --json only reads.

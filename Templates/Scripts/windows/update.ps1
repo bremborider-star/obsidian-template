@@ -159,6 +159,7 @@ if (Get-Command docker -ErrorAction SilentlyContinue) {
         Write-Host '== open-webui binding =='
         if (Repair-OpenWebUIBinding) { Write-Host '  Recreated, bound to 127.0.0.1:3000.' }
         else { Write-Host '  Bound to 127.0.0.1 only.' }
+        if (Test-OpenWebUIImagePin) { Write-Host '  On the pinned image.' }
     }
 }
 

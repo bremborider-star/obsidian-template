@@ -47,6 +47,10 @@ info "Open WebUI container..."
 # LAN (Docker bypasses the macOS application firewall). An existing container
 # keeps whatever binding it was created with, so it is checked, not trusted,
 # and recreated on the same volume if it is published anywhere else.
+# The image is pinned by digest (installers/rag-pins.json, rag_pins.py): Docker
+# resolves the digest, so a re-pushed tag or a swapped image is refused.
+OPEN_WEBUI_IMAGE="$(python3 "$REPO_ROOT/installers/lib/rag_pins.py" image)"
+OPEN_WEBUI_DIGEST="$(python3 "$REPO_ROOT/installers/lib/rag_pins.py" image-digest)"
 start_open_webui() {
     docker run -d --restart=always \
         -p 127.0.0.1:3000:8080 \
@@ -54,7 +58,22 @@ start_open_webui() {
         --add-host=host.docker.internal:host-gateway \
         -e 'OLLAMA_BASE_URL=http://host.docker.internal:11434' \
         --name open-webui \
-        ghcr.io/open-webui/open-webui:main
+        "$OPEN_WEBUI_IMAGE"
+}
+# An existing container keeps the image it was created from. Report, do not
+# replace: moving Open WebUI to another release migrates its database, which
+# is the operator's call, and the volume keeps the account and knowledge.
+report_open_webui_pin() {
+    local image_id repo_digests
+    image_id="$(docker inspect open-webui --format '{{.Image}}' 2>/dev/null || true)"
+    repo_digests="$(docker image inspect "$image_id" --format '{{join .RepoDigests " "}}' 2>/dev/null || true)"
+    if [[ "$repo_digests" == *"@$OPEN_WEBUI_DIGEST"* ]]; then
+        ok "  open-webui runs the pinned image"
+    else
+        warn "  open-webui runs an image other than the pinned one ($OPEN_WEBUI_IMAGE)."
+        warn "  To move to the pin, on the same volume (account and knowledge kept):"
+        warn "    docker pull '$OPEN_WEBUI_IMAGE' && docker rm -f open-webui && ./install.sh --only 50-llm-rag"
+    fi
 }
 if docker ps -a --format '{{.Names}}' | grep -q '^open-webui$'; then
     if ! docker ps --format '{{.Names}}' | grep -q '^open-webui$'; then
@@ -69,6 +88,7 @@ if docker ps -a --format '{{.Names}}' | grep -q '^open-webui$'; then
     else
         ok "  open-webui container running, bound to 127.0.0.1"
     fi
+    report_open_webui_pin
 else
     info "  pulling and starting open-webui..."
     start_open_webui
